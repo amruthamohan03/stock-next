@@ -85,11 +85,11 @@ export default function DataTable<T extends { id: number | string }>({
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-100 text-left text-xs uppercase tracking-wide text-slate-400">
+              <tr className="border-b border-slate-200 bg-slate-50/70 text-left text-[11px] uppercase tracking-wider text-slate-500">
                 {columns.map((c) => (
                   <th
                     key={c.key}
-                    className={`px-4 py-3 font-medium ${
+                    className={`px-4 py-3 font-semibold ${
                       c.align === "right" ? "text-right" : ""
                     }`}
                   >
@@ -112,7 +112,7 @@ export default function DataTable<T extends { id: number | string }>({
               {pageRows.map((row) => (
                 <tr
                   key={String(row.id)}
-                  className="border-b border-slate-50 hover:bg-slate-50/60"
+                  className="border-b border-slate-50 transition-colors hover:bg-brand-50/40"
                 >
                   {columns.map((c) => (
                     <td

@@ -15,11 +15,13 @@ export default async function DashboardLayout({
   const menu = await getMenuForRole(session.roleId);
 
   return (
-    <div className="flex min-h-screen bg-slate-100">
+    <div className="flex min-h-screen">
       <AppSidebar menu={menu} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar user={session} />
-        <main className="flex-1 overflow-x-hidden p-5 md:p-6">{children}</main>
+        <main className="mx-auto w-full max-w-7xl flex-1 overflow-x-hidden p-5 md:p-6 lg:p-8">
+          {children}
+        </main>
       </div>
     </div>
   );

@@ -18,6 +18,9 @@ const DIRECT: Record<string, string> = {
   "user/index": "/user",
   "menu/index": "/menu",
   "role/index": "/role",
+  dashboardCard: "/dashboard-card",
+  rolemenumapping: "/role-menu-mapping",
+  roleDashboardCard: "/role-dashboard-card-mapping",
   book: "/report/book",
   live: "/report/live",
   custom: "/report/custom",
@@ -36,6 +39,12 @@ export const IMPLEMENTED = new Set<string>([
   "/stock",
   "/stockbooks",
   "/report/live",
+  "/menu",
+  "/user",
+  "/role",
+  "/dashboard-card",
+  "/role-menu-mapping",
+  "/role-dashboard-card-mapping",
 ]);
 
 export function toRoute(url: string | null): string {

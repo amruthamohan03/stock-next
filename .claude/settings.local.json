@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(git rm *)",
+      "Bash(git add *)",
+      "Bash(grep -E \"\\(^|/\\)\\\\.env$|tsbuildinfo|/node_modules/|pg_seed\")",
+      "Bash(npm run *)"
     ]
   }
 }

@@ -1,21 +1,22 @@
 @import "tailwindcss";
 
-:root {
-  --background: #f6f7f9;
-  --foreground: #0f172a;
-  --card: #ffffff;
-  --border: #e2e8f0;
-  --primary: #2563eb;
-  --muted: #64748b;
+/* ------------------------------------------------------------------ brand
+   Single source of truth for the accent colour. Change these five values to
+   re-theme the whole app (buttons, links, active states, focus rings, badges).
+*/
+@theme {
+  --color-brand-50: #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-200: #c7d2fe;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #4f46e5;
+  --color-brand-700: #4338ca;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-border: var(--border);
-  --color-primary: var(--primary);
-  --color-muted: var(--muted);
+:root {
+  --background: #f3f4fb;
+  --foreground: #0f172a;
+  --border: #e2e8f0;
 }
 
 * {
@@ -23,7 +24,46 @@
 }
 
 body {
-  background: var(--background);
+  background:
+    radial-gradient(1200px 600px at 100% -10%, #eef2ff 0%, transparent 55%),
+    var(--background);
+  background-attachment: fixed;
   color: var(--foreground);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Soft, consistent card shadow used across the app */
+.shadow-card {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+/* Brand gradients (version-independent — avoids Tailwind gradient utility naming) */
+.bg-brand-grad {
+  background-image: linear-gradient(135deg, var(--color-brand-500), var(--color-brand-700));
+}
+.bg-brand-hero {
+  background-image: linear-gradient(135deg, var(--color-brand-600), var(--color-brand-700) 45%, #312e81);
+}
+
+/* Refined scrollbars */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+  background-clip: content-box;
+}
+
+::selection {
+  background: var(--color-brand-100);
+  color: var(--color-brand-700);
 }

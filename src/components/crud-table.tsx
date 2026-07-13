@@ -15,10 +15,11 @@ const PAGE_SIZE = 10;
 export type FieldDef = {
   name: string;
   label: string;
-  type?: "text" | "number" | "textarea" | "select";
+  type?: "text" | "number" | "textarea" | "select" | "password" | "email";
   required?: boolean;
   options?: { value: string | number; label: string }[];
   default?: string | number;
+  placeholder?: string;
 };
 
 export type ColumnDef = {
@@ -144,14 +145,14 @@ export default function CrudTable({
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-100 text-left text-xs uppercase tracking-wide text-slate-400">
-                <th className="px-5 py-3 font-medium">#</th>
+              <tr className="border-b border-slate-200 bg-slate-50/70 text-left text-[11px] uppercase tracking-wider text-slate-500">
+                <th className="px-5 py-3 font-semibold">#</th>
                 {columns.map((c) => (
-                  <th key={c.key} className="px-5 py-3 font-medium">
+                  <th key={c.key} className="px-5 py-3 font-semibold">
                     {c.label}
                   </th>
                 ))}
-                <th className="px-5 py-3 text-right font-medium">Actions</th>
+                <th className="px-5 py-3 text-right font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -163,7 +164,7 @@ export default function CrudTable({
                 </tr>
               )}
               {pageRows.map((row, i) => (
-                <tr key={String(row.id)} className="border-b border-slate-50 hover:bg-slate-50/60">
+                <tr key={String(row.id)} className="border-b border-slate-50 transition-colors hover:bg-brand-50/40">
                   <td className="px-5 py-3 text-slate-400">
                     {(current - 1) * PAGE_SIZE + i + 1}
                   </td>
@@ -234,13 +235,22 @@ export default function CrudTable({
                   value={form[f.name] ?? ""}
                   required={f.required}
                   onChange={(e) => setForm({ ...form, [f.name]: e.target.value })}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm transition-colors focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
                   rows={3}
                 />
               ) : (
                 <Input
                   id={f.name}
-                  type={f.type === "number" ? "number" : "text"}
+                  type={
+                    f.type === "number"
+                      ? "number"
+                      : f.type === "password"
+                        ? "password"
+                        : f.type === "email"
+                          ? "email"
+                          : "text"
+                  }
+                  placeholder={f.placeholder}
                   value={form[f.name] ?? ""}
                   required={f.required}
                   onChange={(e) => setForm({ ...form, [f.name]: e.target.value })}
@@ -265,14 +275,18 @@ export default function CrudTable({
 function Badge({ value }: { value: string }) {
   const v = value.toUpperCase();
   const map: Record<string, string> = {
-    Y: "bg-emerald-50 text-emerald-700",
-    N: "bg-slate-100 text-slate-500",
-    C: "bg-blue-50 text-blue-700",
-    PUBLIC: "bg-indigo-50 text-indigo-700",
-    PRIVATE: "bg-amber-50 text-amber-700",
+    Y: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
+    N: "bg-slate-100 text-slate-500 ring-slate-500/20",
+    C: "bg-brand-50 text-brand-700 ring-brand-600/20",
+    PUBLIC: "bg-indigo-50 text-indigo-700 ring-indigo-600/20",
+    PRIVATE: "bg-amber-50 text-amber-700 ring-amber-600/20",
   };
   return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${map[v] ?? "bg-slate-100 text-slate-600"}`}>
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${
+        map[v] ?? "bg-slate-100 text-slate-600 ring-slate-500/20"
+      }`}
+    >
       {value || "—"}
     </span>
   );

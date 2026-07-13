@@ -6,13 +6,13 @@ import type { SessionUser } from "@/lib/session";
 
 export default function Topbar({ user }: { user: SessionUser }) {
   return (
-    <header className="flex h-14 items-center justify-between border-b border-slate-200 bg-white px-5">
-      <div className="text-sm text-slate-500">
+    <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-white/85 px-5 backdrop-blur-md">
+      <div className="text-sm font-medium text-slate-600">
         Government Polytechnic College Nedumkandam
       </div>
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2 text-sm">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600">
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5 rounded-full border border-slate-200 bg-white py-1 pl-1 pr-3 text-sm shadow-sm">
+          <span className="bg-brand-grad flex h-7 w-7 items-center justify-center rounded-full text-white">
             <User className="h-4 w-4" />
           </span>
           <div className="leading-tight">
@@ -23,7 +23,7 @@ export default function Topbar({ user }: { user: SessionUser }) {
         <form action={logoutAction}>
           <button
             type="submit"
-            className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100"
+            className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-slate-500 transition-colors hover:bg-red-50 hover:text-red-600"
           >
             <LogOut className="h-4 w-4" />
             <span className="hidden sm:inline">Logout</span>

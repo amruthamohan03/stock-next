@@ -61,7 +61,7 @@ export function SearchableSelect({
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          "flex h-9 w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-slate-50",
+          "flex h-9 w-full items-center justify-between rounded-lg border border-slate-300 bg-white px-3 text-sm shadow-sm transition-colors focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 disabled:bg-slate-50",
           selected ? "text-slate-900" : "text-slate-400"
         )}
       >
@@ -70,7 +70,7 @@ export function SearchableSelect({
       </button>
 
       {open && (
-        <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg">
+        <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
           <div className="flex items-center gap-2 border-b border-slate-100 px-2">
             <Search className="h-4 w-4 shrink-0 text-slate-400" />
             <input
@@ -98,7 +98,7 @@ export function SearchableSelect({
                     }}
                     className={cn(
                       "flex w-full items-center justify-between px-3 py-1.5 text-left text-sm hover:bg-slate-50",
-                      active && "bg-blue-50 text-blue-700"
+                      active && "bg-brand-50 font-medium text-brand-700"
                     )}
                   >
                     <span className="truncate">{o.label}</span>

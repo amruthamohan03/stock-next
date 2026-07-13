@@ -40,7 +40,7 @@ export default async function DashboardPage() {
     ]);
 
   const cards = [
-    { label: "Items", value: items, icon: Package, href: "/item", color: "bg-blue-50 text-blue-600" },
+    { label: "Items", value: items, icon: Package, href: "/item", color: "bg-brand-50 text-brand-600" },
     { label: "Item Groups", value: groups, icon: Layers, href: "/item", color: "bg-violet-50 text-violet-600" },
     { label: "Indents", value: indents, icon: ClipboardList, href: "/indent", color: "bg-amber-50 text-amber-600" },
     { label: "Stock Transactions", value: transactions, icon: ArrowLeftRight, href: "/stock", color: "bg-emerald-50 text-emerald-600" },
@@ -61,10 +61,10 @@ export default async function DashboardPage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {cards.map((c) => (
-          <Link key={c.label} href={c.href}>
-            <Card className="transition-shadow hover:shadow-md">
+          <Link key={c.label} href={c.href} className="group">
+            <Card className="transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-md">
               <CardContent className="flex items-center gap-4">
-                <span className={`flex h-12 w-12 items-center justify-center rounded-lg ${c.color}`}>
+                <span className={`flex h-12 w-12 items-center justify-center rounded-xl ${c.color} transition-transform group-hover:scale-105`}>
                   <c.icon className="h-6 w-6" />
                 </span>
                 <div>
