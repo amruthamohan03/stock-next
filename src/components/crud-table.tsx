@@ -9,6 +9,7 @@ import { Input, Label } from "@/components/ui/input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Pagination } from "@/components/ui/pagination";
 import { Modal } from "@/components/ui/modal";
+import { TableAction, TableActions } from "@/components/ui/table-action";
 
 const PAGE_SIZE = 10;
 
@@ -145,7 +146,7 @@ export default function CrudTable({
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50/70 text-left text-[11px] uppercase tracking-wider text-slate-500">
+              <tr className="border-b border-line bg-elevated text-left text-[11px] uppercase tracking-wider text-muted">
                 <th className="px-5 py-3 font-semibold">#</th>
                 {columns.map((c) => (
                   <th key={c.key} className="px-5 py-3 font-semibold">
@@ -158,18 +159,18 @@ export default function CrudTable({
             <tbody>
               {pageRows.length === 0 && (
                 <tr>
-                  <td colSpan={columns.length + 2} className="px-5 py-8 text-center text-slate-400">
+                  <td colSpan={columns.length + 2} className="px-5 py-8 text-center text-faint">
                     No records found.
                   </td>
                 </tr>
               )}
               {pageRows.map((row, i) => (
-                <tr key={String(row.id)} className="border-b border-slate-50 transition-colors hover:bg-brand-50/40">
-                  <td className="px-5 py-3 text-slate-400">
+                <tr key={String(row.id)} className="border-b border-line/60 transition-colors hover:bg-accent-soft/50">
+                  <td className="px-5 py-3 text-faint">
                     {(current - 1) * PAGE_SIZE + i + 1}
                   </td>
                   {columns.map((c) => (
-                    <td key={c.key} className="px-5 py-3 text-slate-700">
+                    <td key={c.key} className="px-5 py-3 text-fg">
                       {c.badge ? (
                         <Badge value={String(row[c.key] ?? "")} />
                       ) : (
@@ -178,19 +179,10 @@ export default function CrudTable({
                     </td>
                   ))}
                   <td className="px-5 py-3">
-                    <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(row)}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => remove(row)}
-                        className="text-red-500 hover:bg-red-50"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    <TableActions>
+                      <TableAction tone="edit" icon={Pencil} onClick={() => openEdit(row)} title="Edit" />
+                      <TableAction tone="delete" icon={Trash2} onClick={() => remove(row)} title="Delete" />
+                    </TableActions>
                   </td>
                 </tr>
               ))}
@@ -212,7 +204,7 @@ export default function CrudTable({
       >
         <form onSubmit={submit} className="space-y-4">
           {error && (
-            <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+            <div className="rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-500 ring-1 ring-red-500/20">
               {error}
             </div>
           )}
@@ -235,7 +227,7 @@ export default function CrudTable({
                   value={form[f.name] ?? ""}
                   required={f.required}
                   onChange={(e) => setForm({ ...form, [f.name]: e.target.value })}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm transition-colors focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+                  className="w-full rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-fg shadow-sm transition-colors placeholder:text-faint focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
                   rows={3}
                 />
               ) : (
@@ -275,16 +267,16 @@ export default function CrudTable({
 function Badge({ value }: { value: string }) {
   const v = value.toUpperCase();
   const map: Record<string, string> = {
-    Y: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
-    N: "bg-slate-100 text-slate-500 ring-slate-500/20",
-    C: "bg-brand-50 text-brand-700 ring-brand-600/20",
-    PUBLIC: "bg-indigo-50 text-indigo-700 ring-indigo-600/20",
-    PRIVATE: "bg-amber-50 text-amber-700 ring-amber-600/20",
+    Y: "bg-emerald-500/15 text-emerald-500 ring-emerald-500/25",
+    N: "bg-slate-500/15 text-slate-400 ring-slate-500/25",
+    C: "bg-brand-500/15 text-brand-400 ring-brand-500/25",
+    PUBLIC: "bg-indigo-500/15 text-indigo-400 ring-indigo-500/25",
+    PRIVATE: "bg-amber-500/15 text-amber-500 ring-amber-500/25",
   };
   return (
     <span
       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${
-        map[v] ?? "bg-slate-100 text-slate-600 ring-slate-500/20"
+        map[v] ?? "bg-slate-500/15 text-muted ring-slate-500/25"
       }`}
     >
       {value || "—"}

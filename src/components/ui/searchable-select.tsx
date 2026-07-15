@@ -61,29 +61,29 @@ export function SearchableSelect({
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          "flex h-9 w-full items-center justify-between rounded-lg border border-slate-300 bg-white px-3 text-sm shadow-sm transition-colors focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 disabled:bg-slate-50",
-          selected ? "text-slate-900" : "text-slate-400"
+          "flex h-9 w-full items-center justify-between rounded-lg border border-line bg-elevated px-3 text-sm shadow-sm transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 disabled:opacity-60",
+          selected ? "text-fg" : "text-faint"
         )}
       >
         <span className="truncate">{selected ? selected.label : placeholder}</span>
-        <ChevronsUpDown className="h-4 w-4 shrink-0 text-slate-400" />
+        <ChevronsUpDown className="h-4 w-4 shrink-0 text-faint" />
       </button>
 
       {open && (
-        <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
-          <div className="flex items-center gap-2 border-b border-slate-100 px-2">
-            <Search className="h-4 w-4 shrink-0 text-slate-400" />
+        <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-line bg-card shadow-lg">
+          <div className="flex items-center gap-2 border-b border-line px-2">
+            <Search className="h-4 w-4 shrink-0 text-faint" />
             <input
               autoFocus
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search…"
-              className="h-8 w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
+              className="h-8 w-full bg-transparent text-sm text-fg outline-none placeholder:text-faint"
             />
           </div>
           <ul className="max-h-56 overflow-y-auto py-1">
             {filtered.length === 0 && (
-              <li className="px-3 py-2 text-sm text-slate-400">No matches</li>
+              <li className="px-3 py-2 text-sm text-faint">No matches</li>
             )}
             {filtered.map((o) => {
               const active = String(o.value) === String(value);
@@ -97,8 +97,8 @@ export function SearchableSelect({
                       setQuery("");
                     }}
                     className={cn(
-                      "flex w-full items-center justify-between px-3 py-1.5 text-left text-sm hover:bg-slate-50",
-                      active && "bg-brand-50 font-medium text-brand-700"
+                      "flex w-full items-center justify-between px-3 py-1.5 text-left text-sm text-fg hover:bg-elevated",
+                      active && "bg-accent-soft font-medium text-accent-fg"
                     )}
                   >
                     <span className="truncate">{o.label}</span>

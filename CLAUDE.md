@@ -123,6 +123,48 @@ or a native `<select>`:
 - Search + pagination reset: changing the search query resets to page 1 (both
   components already do this) — preserve that when editing them.
 
+## Theming & common styling (required)
+
+The app is **dark by default with a light toggle**, driven entirely by semantic
+CSS-variable tokens defined in `src/app/globals.css`. Style with the tokens, not
+hardcoded palette colours — a page that uses raw `bg-white` / `text-slate-700`
+will not theme correctly.
+
+- **Use the semantic token utilities, never hardcode surface/text/border
+  colours.** The tokens (defined in `@theme` → resolve to `--*` vars that swap
+  per theme):
+  - Surfaces: `bg-surface` (page), `bg-card` (panels), `bg-elevated` (inputs,
+    hovers, table headers).
+  - Text: `text-fg` (primary), `text-muted` (secondary), `text-faint`
+    (tertiary/placeholder).
+  - Borders: `border-line`. Accent: `bg-accent` / `text-accent` /
+    `bg-accent-soft` / `text-accent-fg` (active nav, selected option, row hover).
+  - Brand scale `brand-50…700` is fixed across themes; for tints that must work
+    on dark **and** light use an opacity form (`bg-emerald-500/15
+    text-emerald-500 ring-emerald-500/25`), not the `-50/-700` light shades.
+  - Vibrant gradient helpers for stat tiles: `grad-blue/green/violet/amber/rose/cyan`.
+- **Theme switching**: default dark is set by the no-flash inline script in
+  `src/app/layout.tsx` (`data-theme` on `<html>`); the topbar `ThemeToggle`
+  (`src/components/theme-toggle.tsx`) flips it and persists to `localStorage`.
+  Don't add a second theme mechanism.
+- **Restyle the shared component, not each page.** Card, Button, Input, Modal,
+  Pagination, SearchableSelect, DataTable, CrudTable, sidebar and topbar all use
+  tokens, so most pages inherit the theme for free. Fix look-and-feel there once
+  rather than per page.
+
+## Code quality (required)
+
+- **No redundant code.** Reuse existing shared components, helpers and route
+  handlers before writing new ones (the generic masters route, `CrudTable`,
+  `buttonClasses()`, `getIndentOptions()`, `StatusBadge` are examples). If the
+  same query, markup or class list appears twice, extract it. Duplicated colour
+  strings are a smell — use a token or a shared helper.
+- **Optimised code.** Fetch in parallel (`Promise.all`) in server components;
+  don't N+1 queries in a loop when a join or aggregate does it. Compute derived
+  values in one pass. Keep `render`/`value` and other hot functions cheap.
+- **Typecheck is the gate.** Run `npm run typecheck` after changes (there is no
+  test runner). Keep imports and variables used — no dead code.
+
 ## Conventions & gotchas
 
 - **Preserve original DB names.** Column/table naming matches the PHP app so the

@@ -23,7 +23,7 @@ export function Pagination({
   const to = Math.min(page * pageSize, total);
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-5 py-3 text-sm text-slate-500">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-5 py-3 text-sm text-muted">
       <span>
         {total === 0 ? "No records" : `Showing ${from}–${to} of ${total}`}
       </span>
@@ -36,7 +36,7 @@ export function Pagination({
         >
           <ChevronLeft className="h-4 w-4" /> Prev
         </Button>
-        <span className="text-slate-600">
+        <span className="text-fg">
           Page {Math.min(page, pageCount)} of {pageCount}
         </span>
         <Button

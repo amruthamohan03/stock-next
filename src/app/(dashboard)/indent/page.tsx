@@ -1,13 +1,13 @@
 import { desc, eq, sql, and } from "drizzle-orm";
 import { db } from "@/db";
-import {
-  indentMasterT,
-  departmentMasterT,
-  indentItemT,
-} from "@/db/schema";
+import { indentMasterT, departmentMasterT, indentItemT } from "@/db/schema";
+import IndentForm from "./indent-form";
 import IndentTable from "./indent-table";
+import { getIndentOptions } from "./options";
 
 export default async function IndentPage() {
+  const { groups, items, makes, models } = await getIndentOptions();
+
   const rows = await db
     .select({
       id: indentMasterT.id,
@@ -17,6 +17,7 @@ export default async function IndentPage() {
       status: indentMasterT.status,
       item_type: indentMasterT.item_type,
       department_name: departmentMasterT.department_name,
+      has_bill: sql<boolean>`(${indentMasterT.bill_path} is not null)`,
       item_count: sql<number>`count(${indentItemT.id})::int`,
       total_qty: sql<number>`coalesce(sum(${indentItemT.qty_intended}),0)::int`,
     })
@@ -41,5 +42,10 @@ export default async function IndentPage() {
     )
     .orderBy(desc(indentMasterT.id));
 
-  return <IndentTable rows={rows} />;
+  return (
+    <div className="space-y-6">
+      <IndentForm groups={groups} items={items} makes={makes} models={models} />
+      <IndentTable rows={rows} />
+    </div>
+  );
 }

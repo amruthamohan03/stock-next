@@ -8,7 +8,7 @@ export const Input = React.forwardRef<
   <input
     ref={ref}
     className={cn(
-      "h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 shadow-sm transition-colors placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 disabled:bg-slate-50",
+      "h-9 w-full rounded-lg border border-line bg-elevated px-3 text-sm text-fg shadow-sm transition-colors placeholder:text-faint focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 disabled:opacity-60",
       className
     )}
     {...props}
@@ -23,7 +23,7 @@ export const Select = React.forwardRef<
   <select
     ref={ref}
     className={cn(
-      "h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm text-slate-900 shadow-sm transition-colors focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30",
+      "h-9 w-full rounded-lg border border-line bg-elevated px-2 text-sm text-fg shadow-sm transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30",
       className
     )}
     {...props}
@@ -38,7 +38,7 @@ export const Label = ({
   ...props
 }: React.LabelHTMLAttributes<HTMLLabelElement>) => (
   <label
-    className={cn("mb-1 block text-sm font-medium text-slate-700", className)}
+    className={cn("mb-1 block text-sm font-medium text-fg", className)}
     {...props}
   />
 );

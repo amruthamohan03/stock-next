@@ -40,21 +40,21 @@ export default async function DashboardPage() {
     ]);
 
   const cards = [
-    { label: "Items", value: items, icon: Package, href: "/item", color: "bg-brand-50 text-brand-600" },
-    { label: "Item Groups", value: groups, icon: Layers, href: "/item", color: "bg-violet-50 text-violet-600" },
-    { label: "Indents", value: indents, icon: ClipboardList, href: "/indent", color: "bg-amber-50 text-amber-600" },
-    { label: "Stock Transactions", value: transactions, icon: ArrowLeftRight, href: "/stock", color: "bg-emerald-50 text-emerald-600" },
-    { label: "Stock Book Entries", value: stockBooks, icon: Boxes, href: "/stock", color: "bg-cyan-50 text-cyan-600" },
-    { label: "Departments", value: departments, icon: Building2, href: "/department", color: "bg-rose-50 text-rose-600" },
+    { label: "Items", value: items, icon: Package, href: "/item", color: "bg-brand-500/15 text-brand-400" },
+    { label: "Item Groups", value: groups, icon: Layers, href: "/item", color: "bg-violet-500/15 text-violet-400" },
+    { label: "Indents", value: indents, icon: ClipboardList, href: "/indent", color: "bg-amber-500/15 text-amber-400" },
+    { label: "Stock Transactions", value: transactions, icon: ArrowLeftRight, href: "/stock", color: "bg-emerald-500/15 text-emerald-400" },
+    { label: "Stock Book Entries", value: stockBooks, icon: Boxes, href: "/stock", color: "bg-cyan-500/15 text-cyan-400" },
+    { label: "Departments", value: departments, icon: Building2, href: "/department", color: "bg-rose-500/15 text-rose-400" },
   ];
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-slate-800">
+        <h1 className="text-xl font-semibold text-fg">
           Welcome back, {session?.fullName ?? "User"}
         </h1>
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-muted">
           Here&apos;s an overview of your inventory system.
         </p>
       </div>
@@ -62,14 +62,14 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {cards.map((c) => (
           <Link key={c.label} href={c.href} className="group">
-            <Card className="transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-md">
+            <Card className="transition-all duration-200 hover:-translate-y-0.5 hover:border-accent hover:shadow-md">
               <CardContent className="flex items-center gap-4">
                 <span className={`flex h-12 w-12 items-center justify-center rounded-xl ${c.color} transition-transform group-hover:scale-105`}>
                   <c.icon className="h-6 w-6" />
                 </span>
                 <div>
-                  <div className="text-2xl font-bold text-slate-800">{c.value}</div>
-                  <div className="text-sm text-slate-500">{c.label}</div>
+                  <div className="text-2xl font-bold text-fg">{c.value}</div>
+                  <div className="text-sm text-muted">{c.label}</div>
                 </div>
               </CardContent>
             </Card>

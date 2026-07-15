@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Bold,
   Italic,
@@ -14,13 +15,30 @@ import {
   Table as TableIcon,
   Eraser,
   Printer,
+  Save,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { SignatorySelect } from "@/components/ui/signatory-select";
+import type { Signatory } from "@/lib/signatories";
 
 type TemplateKey = "submission" | "justification" | "essentiality" | "custom";
+
+export type DocumentInitial = {
+  id: number;
+  title: string;
+  doc_type: string;
+  body: string;
+  place: string;
+  doc_date: string;
+  submitted_name: string;
+  designation: string;
+  department: string;
+  institution: string;
+  signed_by: string;
+};
 
 const TEMPLATES: Record<TemplateKey, { label: string; title: string; body: string }> = {
   submission: {
@@ -72,30 +90,81 @@ const fmtDate = (iso: string) => {
 export default function DocumentBuilder({
   defaultName,
   defaultDesignation,
+  signatories,
+  initial,
 }: {
   defaultName: string;
   defaultDesignation: string;
+  signatories: Signatory[];
+  initial?: DocumentInitial;
 }) {
+  const router = useRouter();
+  const editing = !!initial;
   const editorRef = useRef<HTMLDivElement>(null);
-  const [docType, setDocType] = useState<TemplateKey>("submission");
-  const [title, setTitle] = useState(TEMPLATES.submission.title);
+  const [docType, setDocType] = useState<TemplateKey>(
+    (initial?.doc_type as TemplateKey) || "submission"
+  );
+  const [title, setTitle] = useState(initial?.title ?? TEMPLATES.submission.title);
 
-  const [place, setPlace] = useState("Nedumkandam");
-  const [date, setDate] = useState(todayIso());
-  const [name, setName] = useState(defaultName);
-  const [designation, setDesignation] = useState(defaultDesignation || "HoD-In-Charge");
-  const [department, setDepartment] = useState("Department of Computer Engineering");
-  const [institution, setInstitution] = useState("GPTC Nedumkandam");
+  const [place, setPlace] = useState(initial?.place ?? "Nedumkandam");
+  const [date, setDate] = useState(initial?.doc_date || todayIso());
+  const [name, setName] = useState(initial?.submitted_name ?? defaultName);
+  const [designation, setDesignation] = useState(
+    initial?.designation ?? defaultDesignation ?? "HoD-In-Charge"
+  );
+  const [department, setDepartment] = useState(
+    initial?.department ?? "Department of Computer Engineering"
+  );
+  const [institution, setInstitution] = useState(initial?.institution ?? "GPTC Nedumkandam");
+  const [signedBy, setSignedBy] = useState(initial?.signed_by ?? "");
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
-  // Seed the editor once on mount.
+  // Seed the editor once on mount (existing body when editing, else a template).
   useEffect(() => {
-    if (editorRef.current) editorRef.current.innerHTML = TEMPLATES.submission.body;
-  }, []);
+    if (editorRef.current) {
+      editorRef.current.innerHTML = initial?.body || TEMPLATES.submission.body;
+    }
+  }, [initial]);
 
   const applyTemplate = (key: TemplateKey) => {
     setDocType(key);
     setTitle(TEMPLATES[key].title);
     if (editorRef.current) editorRef.current.innerHTML = TEMPLATES[key].body;
+  };
+
+  const save = async () => {
+    setMsg(null);
+    if (!title.trim()) {
+      setMsg({ ok: false, text: "Title is required." });
+      return;
+    }
+    setSaving(true);
+    const res = await fetch("/api/document", {
+      method: editing ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: initial?.id,
+        title,
+        doc_type: docType,
+        body: editorRef.current?.innerHTML ?? "",
+        place,
+        doc_date: date,
+        submitted_name: name,
+        designation,
+        department,
+        institution,
+        signed_by: signedBy || null,
+      }),
+    });
+    const json = await res.json();
+    setSaving(false);
+    if (json.success) {
+      router.push("/report/document");
+      router.refresh();
+    } else {
+      setMsg({ ok: false, text: json.message ?? "Save failed" });
+    }
   };
 
   const exec = (command: string, value?: string) => {
@@ -138,12 +207,29 @@ export default function DocumentBuilder({
       {/* Controls — hidden when printing */}
       <Card className="no-print">
         <CardHeader>
-          <CardTitle>Document Builder</CardTitle>
-          <Button size="sm" onClick={() => window.print()}>
-            <Printer className="h-4 w-4" /> Print / Save PDF
-          </Button>
+          <CardTitle>{editing ? "Edit Document" : "Document Builder"}</CardTitle>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => router.push("/report/document")}>
+              Cancel
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => window.print()}>
+              <Printer className="h-4 w-4" /> Print
+            </Button>
+            <Button size="sm" onClick={save} disabled={saving}>
+              <Save className="h-4 w-4" /> {saving ? "Saving…" : editing ? "Update" : "Save"}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-3">
+          {msg && (
+            <div
+              className={`rounded-lg px-3 py-2 text-sm ${
+                msg.ok ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"
+              }`}
+            >
+              {msg.text}
+            </div>
+          )}
           <div className="flex flex-wrap items-end gap-3">
             <div className="w-64">
               <Label>Document type</Label>
@@ -153,13 +239,26 @@ export default function DocumentBuilder({
                 options={Object.entries(TEMPLATES).map(([k, t]) => ({ value: k, label: t.label }))}
               />
             </div>
-            <p className="pb-2 text-xs text-slate-400">
-              Picking a type loads a starting template — edit everything below, then print.
+            <div className="w-64">
+              <Label>Signed by</Label>
+              <SignatorySelect
+                signatories={signatories}
+                value={signedBy}
+                onPick={(sgn) => {
+                  setSignedBy(sgn.id);
+                  setName(sgn.name);
+                  if (sgn.designation) setDesignation(sgn.designation);
+                }}
+              />
+            </div>
+            <p className="pb-2 text-xs text-faint">
+              Picking a signatory fills the name &amp; designation block below (you, the
+              creator, may differ from the signer). Edit everything, then save or print.
             </p>
           </div>
 
           {/* Formatting toolbar */}
-          <div className="flex flex-wrap items-center gap-1 rounded-md border border-slate-200 p-1">
+          <div className="flex flex-wrap items-center gap-1 rounded-md border border-line p-1">
             {tools.map((t) => (
               <button
                 key={t.label}
@@ -167,7 +266,7 @@ export default function DocumentBuilder({
                 title={t.label}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={t.run}
-                className="rounded p-2 text-slate-600 hover:bg-slate-100"
+                className="rounded p-2 text-muted hover:bg-elevated hover:text-fg"
               >
                 <t.icon className="h-4 w-4" />
               </button>

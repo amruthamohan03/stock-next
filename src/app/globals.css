@@ -1,45 +1,96 @@
 @import "tailwindcss";
 
-/* ------------------------------------------------------------------ brand
-   Single source of truth for the accent colour. Change these five values to
-   re-theme the whole app (buttons, links, active states, focus rings, badges).
-*/
+/* ==================================================================
+   Design tokens — dark + light theming.
+
+   Semantic colours are exposed to Tailwind as `--color-*` (so you get
+   utilities like `bg-card`, `text-fg`, `border-line`, `bg-accent`) and
+   resolve to raw `--*` vars that are swapped per theme below. Default is
+   DARK (raw vars live on :root); `[data-theme="light"]` overrides them.
+   ================================================================== */
 @theme {
+  /* Brand scale (indigo) — fixed across themes */
   --color-brand-50: #eef2ff;
   --color-brand-100: #e0e7ff;
   --color-brand-200: #c7d2fe;
+  --color-brand-300: #a5b4fc;
+  --color-brand-400: #818cf8;
   --color-brand-500: #6366f1;
   --color-brand-600: #4f46e5;
   --color-brand-700: #4338ca;
+
+  /* Semantic tokens → resolve to the raw theme vars */
+  --color-surface: var(--surface);
+  --color-card: var(--card);
+  --color-elevated: var(--elevated);
+  --color-line: var(--line);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-fg: var(--accent-fg);
 }
 
+/* ---- DARK (default) ---- */
 :root {
-  --background: #f3f4fb;
-  --foreground: #0f172a;
-  --border: #e2e8f0;
+  --surface: #0a0e17;
+  --card: #111725;
+  --elevated: #1a2234;
+  --line: #232d40;
+  --fg: #e6e9ef;
+  --muted: #99a3b5;
+  --faint: #616d82;
+  --accent: #818cf8;
+  --accent-soft: rgba(129, 140, 248, 0.15);
+  --accent-fg: #c7d2fe;
+  --ring: rgba(129, 140, 248, 0.35);
+  --glow: rgba(99, 102, 241, 0.18);
+  color-scheme: dark;
+}
+
+/* ---- LIGHT ---- */
+[data-theme="light"] {
+  --surface: #f3f4fb;
+  --card: #ffffff;
+  --elevated: #f7f8fc;
+  --line: #e5e8f0;
+  --fg: #0f172a;
+  --muted: #64748b;
+  --faint: #94a3b8;
+  --accent: #4f46e5;
+  --accent-soft: #eef2ff;
+  --accent-fg: #4338ca;
+  --ring: rgba(99, 102, 241, 0.3);
+  --glow: rgba(99, 102, 241, 0.12);
+  color-scheme: light;
 }
 
 * {
-  border-color: var(--border);
+  border-color: var(--line);
 }
 
 body {
   background:
-    radial-gradient(1200px 600px at 100% -10%, #eef2ff 0%, transparent 55%),
-    var(--background);
+    radial-gradient(1000px 520px at 100% -10%, var(--glow) 0%, transparent 55%),
+    radial-gradient(900px 500px at -10% 110%, var(--glow) 0%, transparent 55%),
+    var(--surface);
   background-attachment: fixed;
-  color: var(--foreground);
+  color: var(--fg);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-/* Soft, consistent card shadow used across the app */
+/* Soft, consistent card shadow (deeper on dark) */
 .shadow-card {
+  box-shadow: 0 1px 2px rgba(2, 6, 23, 0.35), 0 1px 3px rgba(2, 6, 23, 0.25);
+}
+[data-theme="light"] .shadow-card {
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.06);
 }
 
-/* Brand gradients (version-independent — avoids Tailwind gradient utility naming) */
+/* Brand gradients */
 .bg-brand-grad {
   background-image: linear-gradient(135deg, var(--color-brand-500), var(--color-brand-700));
 }
@@ -47,23 +98,43 @@ body {
   background-image: linear-gradient(135deg, var(--color-brand-600), var(--color-brand-700) 45%, #312e81);
 }
 
-/* Refined scrollbars */
+/* Vibrant stat-card gradients (Modernize/NextUI style) */
+.grad-blue {
+  background-image: linear-gradient(135deg, #3b82f6, #2563eb);
+}
+.grad-green {
+  background-image: linear-gradient(135deg, #22c55e, #16a34a);
+}
+.grad-violet {
+  background-image: linear-gradient(135deg, #8b5cf6, #6d28d9);
+}
+.grad-amber {
+  background-image: linear-gradient(135deg, #f59e0b, #d97706);
+}
+.grad-rose {
+  background-image: linear-gradient(135deg, #f43f5e, #e11d48);
+}
+.grad-cyan {
+  background-image: linear-gradient(135deg, #06b6d4, #0891b2);
+}
+
+/* Refined scrollbars (theme-aware) */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: var(--line);
   border-radius: 9999px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: var(--faint);
   background-clip: content-box;
 }
 
 ::selection {
-  background: var(--color-brand-100);
-  color: var(--color-brand-700);
+  background: var(--accent-soft);
+  color: var(--accent-fg);
 }

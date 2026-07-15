@@ -12,3 +12,6 @@ npm-debug.log*
 pg_seed.sql
 next-env.d.ts
 *.tsbuildinfo
+
+# Uploaded files (bills, attachments)
+/uploads/

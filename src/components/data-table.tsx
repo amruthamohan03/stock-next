@@ -10,8 +10,9 @@ export type Column<T> = {
   label: string;
   align?: "left" | "right";
   className?: string;
-  /** Custom cell renderer. Falls back to `value` / row[key] when omitted. */
-  render?: (row: T) => ReactNode;
+  /** Custom cell renderer. Falls back to `value` / row[key] when omitted.
+   *  `index` is the row's position in the full filtered list (useful for #). */
+  render?: (row: T, index: number) => ReactNode;
   /** Text used for searching (and as the default cell text). */
   value?: (row: T) => string | number | null | undefined;
 };
@@ -31,12 +32,15 @@ export default function DataTable<T extends { id: number | string }>({
   columns,
   rows,
   pageSize = 10,
+  minWidth,
 }: {
   title: string;
   subtitle?: string;
   columns: Column<T>[];
   rows: T[];
   pageSize?: number;
+  /** Optional min table width (e.g. "64rem") so wide tables scroll instead of cramping. */
+  minWidth?: string;
 }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -56,8 +60,8 @@ export default function DataTable<T extends { id: number | string }>({
   const current = Math.min(page, pageCount);
   const pageRows = filtered.slice((current - 1) * pageSize, current * pageSize);
 
-  const cellText = (c: Column<T>, r: T) => {
-    if (c.render) return c.render(r);
+  const cellText = (c: Column<T>, r: T, index: number) => {
+    if (c.render) return c.render(r, index);
     const v = c.value ? c.value(r) : (r as Record<string, unknown>)[c.key];
     return v == null || v === "" ? "—" : String(v);
   };
@@ -68,7 +72,7 @@ export default function DataTable<T extends { id: number | string }>({
         <div>
           <CardTitle>{title}</CardTitle>
           {subtitle && (
-            <span className="text-sm text-slate-400">{subtitle}</span>
+            <span className="text-sm text-faint">{subtitle}</span>
           )}
         </div>
         <Input
@@ -83,9 +87,12 @@ export default function DataTable<T extends { id: number | string }>({
       </CardHeader>
       <CardContent className="p-0">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table
+            className="w-full text-sm"
+            style={minWidth ? { minWidth } : undefined}
+          >
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50/70 text-left text-[11px] uppercase tracking-wider text-slate-500">
+              <tr className="border-b border-line bg-elevated text-left text-[11px] uppercase tracking-wider text-muted">
                 {columns.map((c) => (
                   <th
                     key={c.key}
@@ -103,29 +110,32 @@ export default function DataTable<T extends { id: number | string }>({
                 <tr>
                   <td
                     colSpan={columns.length}
-                    className="px-4 py-8 text-center text-slate-400"
+                    className="px-4 py-8 text-center text-faint"
                   >
                     No records found.
                   </td>
                 </tr>
               )}
-              {pageRows.map((row) => (
-                <tr
-                  key={String(row.id)}
-                  className="border-b border-slate-50 transition-colors hover:bg-brand-50/40"
-                >
-                  {columns.map((c) => (
-                    <td
-                      key={c.key}
-                      className={`px-4 py-3 text-slate-600 ${
-                        c.align === "right" ? "text-right" : ""
-                      } ${c.className ?? ""}`}
-                    >
-                      {cellText(c, row)}
-                    </td>
-                  ))}
-                </tr>
-              ))}
+              {pageRows.map((row, i) => {
+                const rowIndex = (current - 1) * pageSize + i;
+                return (
+                  <tr
+                    key={String(row.id)}
+                    className="border-b border-line/60 transition-colors hover:bg-accent-soft/50"
+                  >
+                    {columns.map((c) => (
+                      <td
+                        key={c.key}
+                        className={`px-4 py-3 text-muted ${
+                          c.align === "right" ? "text-right" : ""
+                        } ${c.className ?? ""}`}
+                      >
+                        {cellText(c, row, rowIndex)}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -388,6 +388,9 @@ export const indentMasterT = pgTable("indent_master_t", {
   issued_by: integer(),
   received_by: integer(),
   status: varchar({ length: 20 }).default("CREATED"),
+  bill_path: varchar({ length: 255 }), // stored filename of the uploaded bill (image/pdf)
+  bill_name: varchar({ length: 255 }), // original filename
+  bill_type: varchar({ length: 100 }), // MIME type
   created_at: createdAt(),
   updated_at: updatedAt(),
   display: varchar({ length: 1 }).default("Y"),
@@ -414,6 +417,66 @@ export const indentItemT = pgTable("indent_item_t", {
   display: varchar({ length: 1 }).default("Y"),
   status_id: integer().notNull().default(1),
   created_at: createdAt(),
+});
+
+/* ---------------------------------------------------------- K.F.C. Form 13 */
+// Annual stock/indent planning register (K.F.C. Form 13). New to the Next port
+// (no MySQL source table) — one form (header) holds many article rows.
+export const kfcForm13T = pgTable("kfc_form_13_t", {
+  id: pk(),
+  title: varchar({ length: 255 }).notNull(),
+  form_date: date(),
+  department_id: integer(),
+  signed_by: integer(), // signatory user (may differ from created_by)
+  signatory_name: varchar({ length: 150 }),
+  signatory_designation: varchar({ length: 150 }),
+  created_by: integer(),
+  updated_by: integer(),
+  created_at: createdAt(),
+  updated_at: updatedAt(),
+  display: varchar({ length: 1 }).default("Y"),
+});
+
+export const kfcForm13ItemT = pgTable("kfc_form_13_item_t", {
+  id: pk(),
+  form_id: integer().notNull(),
+  sl_no: integer().notNull(),
+  item_id: integer(), // col 2 source (item_master), nullable for free-text articles
+  article: text(), // col 2 — full description/specification (expandable)
+  stock_on_hand: integer().default(0), // col 3 — auto-filled from item stock
+  purchase_year: integer().default(0), // col 4
+  qty_required: integer().default(0), // col 5
+  rate_unit: integer().default(0), // col 6 — Unit rate
+  rate_amount: integer().default(0), // col 7 — Amount (qty × unit)
+  supplier: varchar({ length: 255 }), // col 8
+  purpose: text(), // col 9
+  delivery_place: varchar({ length: 255 }), // col 10
+  classification_no: varchar({ length: 100 }), // col 11
+  remarks: varchar({ length: 500 }), // col 12
+  display: varchar({ length: 1 }).default("Y"),
+  created_at: createdAt(),
+});
+
+/* ---------------------------------------------------------------- documents */
+// Composed print documents (submission / justification / essentiality / custom).
+// New to the Next port — stores the rich-text body + signatory block.
+export const documentT = pgTable("document_t", {
+  id: pk(),
+  title: varchar({ length: 255 }).notNull(),
+  doc_type: varchar({ length: 30 }).default("custom"),
+  body: text(), // rich-text HTML
+  place: varchar({ length: 150 }),
+  doc_date: date(),
+  submitted_name: varchar({ length: 150 }), // signatory name (shown on print)
+  designation: varchar({ length: 150 }),
+  department: varchar({ length: 255 }),
+  institution: varchar({ length: 255 }),
+  signed_by: integer(), // signatory user (may differ from created_by)
+  created_by: integer(),
+  updated_by: integer(),
+  created_at: createdAt(),
+  updated_at: updatedAt(),
+  display: varchar({ length: 1 }).default("Y"),
 });
 
 /* ------------------------------------------------------------------ stock */

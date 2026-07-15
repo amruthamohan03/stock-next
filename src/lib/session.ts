@@ -2,7 +2,8 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 
 export const SESSION_COOKIE = "stock_session";
-const MAX_AGE = 60 * 60 * 8; // 8 hours
+const MAX_AGE = 60 * 60 * 8; // 8 hours (default session)
+const REMEMBER_MAX_AGE = 60 * 60 * 24 * 30; // 30 days ("remember me")
 
 export type SessionUser = {
   id: number;
@@ -24,11 +25,15 @@ function getSecret(): Uint8Array {
   return new TextEncoder().encode(secret);
 }
 
-export async function createSessionToken(user: SessionUser): Promise<string> {
+export async function createSessionToken(
+  user: SessionUser,
+  rememberMe = false
+): Promise<string> {
+  const maxAge = rememberMe ? REMEMBER_MAX_AGE : MAX_AGE;
   return new SignJWT({ ...user })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime(`${MAX_AGE}s`)
+    .setExpirationTime(`${maxAge}s`)
     .sign(getSecret());
 }
 
@@ -59,14 +64,17 @@ export async function getSession(): Promise<SessionUser | null> {
   return verifySessionToken(token);
 }
 
-export async function setSessionCookie(token: string): Promise<void> {
+export async function setSessionCookie(
+  token: string,
+  rememberMe = false
+): Promise<void> {
   const store = await cookies();
   store.set(SESSION_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: MAX_AGE,
+    maxAge: rememberMe ? REMEMBER_MAX_AGE : MAX_AGE,
   });
 }
 

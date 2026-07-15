@@ -26,16 +26,16 @@ export function Modal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
-        className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
         aria-hidden
       />
-      <div className="relative z-10 w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-900/5">
-        <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/60 px-5 py-4">
-          <h3 className="text-base font-semibold text-slate-800">{title}</h3>
+      <div className="relative z-10 w-full max-w-lg overflow-hidden rounded-2xl border border-line bg-card shadow-2xl">
+        <div className="flex items-center justify-between border-b border-line bg-elevated px-5 py-4">
+          <h3 className="text-base font-semibold text-fg">{title}</h3>
           <button
             onClick={onClose}
-            className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            className="rounded-md p-1 text-muted hover:bg-line hover:text-fg"
           >
             <X className="h-5 w-5" />
           </button>

@@ -19,6 +19,7 @@ export async function loginAction(
 ): Promise<LoginState> {
   const username = String(formData.get("username") ?? "").trim();
   const password = String(formData.get("password") ?? "");
+  const rememberMe = formData.get("remember") === "on";
 
   if (!username || !password) {
     return { error: "Please enter your username and password." };
@@ -53,8 +54,8 @@ export async function loginAction(
     roleId: user.roleId,
     roleName: user.roleName ?? "User",
     profileImage: user.profileImage,
-  });
-  await setSessionCookie(token);
+  }, rememberMe);
+  await setSessionCookie(token, rememberMe);
 
   redirect("/dashboard");
 }

@@ -1,31 +1,51 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import Link from "next/link";
+import { and, desc, eq, sql } from "drizzle-orm";
+import { Plus } from "lucide-react";
 import { db } from "@/db";
-import { itemMasterT, stockBookT } from "@/db/schema";
-import KfcForm13, { type SeedRow } from "./kfc-form-13-table";
+import { kfcForm13T, kfcForm13ItemT, usersT, roleMasterT } from "@/db/schema";
+import { buttonClasses } from "@/components/ui/button";
+import KfcList from "./kfc-list";
 
-// K.F.C. Form 13 (reverse) — annual stock / indent register.
-// Seeded dynamically: Article (col 2) and Stock on hand after verification (col 3)
-// come from live item + stock-book data; the planning columns are filled in by hand.
+// K.F.C. Form 13 — list of saved forms with CRUD (create / edit / delete).
 export default async function KfcForm13Page() {
-  const items = await db
+  const rows = await db
     .select({
-      id: itemMasterT.id,
-      item_name: itemMasterT.item_name,
-      stock_on_hand: sql<number>`coalesce(sum(${stockBookT.current_balance}), 0)::int`,
+      id: kfcForm13T.id,
+      title: kfcForm13T.title,
+      form_date: kfcForm13T.form_date,
+      created_at: kfcForm13T.created_at,
+      created_by_name: usersT.full_name,
+      role_name: roleMasterT.role_name,
+      signed_by_name: kfcForm13T.signatory_name,
+      item_count: sql<number>`count(${kfcForm13ItemT.id})::int`,
     })
-    .from(itemMasterT)
+    .from(kfcForm13T)
     .leftJoin(
-      stockBookT,
-      and(eq(stockBookT.item_id, itemMasterT.id), eq(stockBookT.display, "Y"))
+      kfcForm13ItemT,
+      and(eq(kfcForm13ItemT.form_id, kfcForm13T.id), eq(kfcForm13ItemT.display, "Y"))
     )
-    .where(eq(itemMasterT.display, "Y"))
-    .groupBy(itemMasterT.id, itemMasterT.item_name)
-    .orderBy(asc(itemMasterT.item_name));
+    .leftJoin(usersT, eq(kfcForm13T.created_by, usersT.id))
+    .leftJoin(roleMasterT, eq(usersT.role_id, roleMasterT.id))
+    .where(eq(kfcForm13T.display, "Y"))
+    .groupBy(
+      kfcForm13T.id,
+      kfcForm13T.title,
+      kfcForm13T.form_date,
+      kfcForm13T.created_at,
+      kfcForm13T.signatory_name,
+      usersT.full_name,
+      roleMasterT.role_name
+    )
+    .orderBy(desc(kfcForm13T.id));
 
-  const seed: SeedRow[] = items.map((i) => ({
-    article: i.item_name ?? "",
-    stock_on_hand: i.stock_on_hand ?? 0,
-  }));
-
-  return <KfcForm13 seed={seed} />;
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-end">
+        <Link href="/report/kfc-form-13/new" className={buttonClasses({ size: "sm" })}>
+          <Plus className="h-4 w-4" /> New KFC Form 13
+        </Link>
+      </div>
+      <KfcList rows={rows} />
+    </div>
+  );
 }

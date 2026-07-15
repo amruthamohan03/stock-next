@@ -6,10 +6,10 @@ type Size = "sm" | "md" | "icon";
 
 const variants: Record<Variant, string> = {
   primary: "bg-brand-600 text-white shadow-sm hover:bg-brand-700 active:bg-brand-700",
-  secondary: "bg-slate-100 text-slate-800 hover:bg-slate-200",
+  secondary: "bg-elevated text-fg hover:bg-line",
   danger: "bg-red-600 text-white shadow-sm hover:bg-red-700",
-  ghost: "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
-  outline: "border border-slate-300 bg-white text-slate-700 shadow-sm hover:bg-slate-50 hover:border-slate-400",
+  ghost: "text-muted hover:bg-elevated hover:text-fg",
+  outline: "border border-line bg-card text-fg shadow-sm hover:bg-elevated",
 };
 
 const sizes: Record<Size, string> = {
@@ -17,6 +17,19 @@ const sizes: Record<Size, string> = {
   md: "h-9 px-4 text-sm",
   icon: "h-8 w-8",
 };
+
+const base =
+  "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50";
+
+/** Button styling as a class string — reuse on links/anchors that should look
+ *  like a button (avoids duplicating the class list). */
+export function buttonClasses({
+  variant = "primary",
+  size = "md",
+  className,
+}: { variant?: Variant; size?: Size; className?: string } = {}) {
+  return cn(base, variants[variant], sizes[size], className);
+}
 
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -28,12 +41,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = "primary", size = "md", ...props }, ref) => (
     <button
       ref={ref}
-      className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50",
-        variants[variant],
-        sizes[size],
-        className
-      )}
+      className={buttonClasses({ variant, size, className })}
       {...props}
     />
   )
