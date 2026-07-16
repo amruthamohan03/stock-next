@@ -3,10 +3,75 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Circle, Lock, Boxes } from "lucide-react";
+import {
+  ChevronDown,
+  Boxes,
+  LayoutDashboard,
+  Package,
+  LayoutGrid,
+  FileText,
+  Users,
+  Settings,
+  BarChart3,
+  ClipboardList,
+  Truck,
+  Boxes as BoxesIcon,
+  BookOpen,
+  Folder,
+  MessageSquare,
+  type LucideIcon,
+} from "lucide-react";
 import type { MenuNode } from "@/lib/rbac";
 import { toRoute, IMPLEMENTED } from "@/lib/menu-map";
 import { cn } from "@/lib/utils";
+
+/**
+ * Resolve a menu node to a lucide icon. The DB stores Tabler classes
+ * (e.g. "ti ti-package") which this app can't render, so we map the icon
+ * suffix (and fall back to keywords in the label) to a lucide icon.
+ */
+function iconFor(node: MenuNode): LucideIcon {
+  const raw = (node.icon ?? "").toLowerCase();
+  const text = (node.text ?? "").toLowerCase();
+  const key = raw.replace(/^.*\bti-?/, "").trim(); // "ti ti-package" → "package"
+
+  const byClass: Record<string, LucideIcon> = {
+    dashboard: LayoutDashboard,
+    home: LayoutDashboard,
+    package: Package,
+    "package-variant": Package,
+    box: BoxesIcon,
+    layout: LayoutGrid,
+    "layout-2": LayoutGrid,
+    report: BarChart3,
+    reports: BarChart3,
+    chart: BarChart3,
+    "chart-bar": BarChart3,
+    file: FileText,
+    "file-text": FileText,
+    clipboard: ClipboardList,
+    users: Users,
+    user: Users,
+    settings: Settings,
+    truck: Truck,
+    book: BookOpen,
+    message: MessageSquare,
+    mail: MessageSquare,
+    "message-circle": MessageSquare,
+  };
+  if (byClass[key]) return byClass[key];
+
+  // Fall back to keywords in the visible label.
+  if (/dashboard|home/.test(text)) return LayoutDashboard;
+  if (/stock|item|inventor/.test(text)) return Package;
+  if (/master/.test(text)) return LayoutGrid;
+  if (/report|book|register/.test(text)) return BarChart3;
+  if (/user|role|menu|admin/.test(text)) return Users;
+  if (/provider|supplier|vendor/.test(text)) return Truck;
+  if (/setting|config/.test(text)) return Settings;
+  if (/message|mail|whatsapp|send/.test(text)) return MessageSquare;
+  return Folder;
+}
 
 export default function AppSidebar({ menu }: { menu: MenuNode[] }) {
   return (
@@ -41,6 +106,8 @@ function MenuItem({ node }: { node: MenuNode }) {
     hasChildren && node.children.some((c) => pathname === toRoute(c.url))
   );
 
+  const Icon = iconFor(node);
+
   if (hasChildren) {
     return (
       <div>
@@ -48,7 +115,10 @@ function MenuItem({ node }: { node: MenuNode }) {
           onClick={() => setOpen((o) => !o)}
           className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-elevated hover:text-fg"
         >
-          <span>{node.text}</span>
+          <span className="flex items-center gap-2.5">
+            <Icon className="h-[1.15rem] w-[1.15rem] shrink-0 text-muted" />
+            {node.text}
+          </span>
           <ChevronDown
             className={cn("h-4 w-4 text-faint transition-transform", open && "rotate-180")}
           />
@@ -70,6 +140,9 @@ function MenuItem({ node }: { node: MenuNode }) {
 function Leaf({ node, active }: { node: MenuNode; active: boolean }) {
   const route = toRoute(node.url);
   const ready = IMPLEMENTED.has(route);
+  // Top-level leaves (e.g. Dashboard) are "main menus" → show their icon.
+  const topLevel = node.level === 0;
+  const Icon = iconFor(node);
 
   return (
     <Link
@@ -83,15 +156,14 @@ function Leaf({ node, active }: { node: MenuNode; active: boolean }) {
       )}
       title={ready ? undefined : "Module not yet ported"}
     >
-      {ready ? (
-        <Circle
+      {/* Icon only for main (top-level) menus; sub-menus show just the label. */}
+      {topLevel && (
+        <Icon
           className={cn(
-            "h-2 w-2 shrink-0 transition-colors",
-            active ? "fill-accent text-accent" : "fill-faint text-faint group-hover:fill-muted"
+            "h-[1.15rem] w-[1.15rem] shrink-0",
+            active ? "text-accent-fg" : "text-muted group-hover:text-fg"
           )}
         />
-      ) : (
-        <Lock className="h-3 w-3 shrink-0" />
       )}
       <span className="truncate">{node.text}</span>
     </Link>

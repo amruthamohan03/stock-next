@@ -8,39 +8,32 @@ import { TableAction, TableActions } from "@/components/ui/table-action";
 import { creatorColumns, signedByColumn } from "@/components/table-columns";
 import { formatDate, formatDateTime } from "@/lib/utils";
 
-export type DocumentRow = {
+export type Kfc21Row = {
   id: number;
   title: string | null;
-  doc_type: string | null;
-  doc_date: string | Date | null;
+  form_date: string | Date | null;
+  item_count: number;
   created_at: string | Date | null;
   created_by_name: string | null;
   role_name: string | null;
   signed_by_name: string | null;
 };
 
-const TYPE_LABEL: Record<string, string> = {
-  submission: "Submission",
-  justification: "Justification",
-  essentiality: "Essentiality",
-  custom: "Custom",
-};
-
-export default function DocumentList({ rows }: { rows: DocumentRow[] }) {
+export default function Kfc21List({ rows }: { rows: Kfc21Row[] }) {
   const router = useRouter();
   const [deleting, setDeleting] = useState<number | null>(null);
 
-  const remove = async (row: DocumentRow) => {
+  const remove = async (row: Kfc21Row) => {
     if (!confirm(`Delete "${row.title ?? row.id}"?`)) return;
     setDeleting(row.id);
-    const res = await fetch(`/api/document?id=${row.id}`, { method: "DELETE" });
+    const res = await fetch(`/api/kfc-form-21?id=${row.id}`, { method: "DELETE" });
     const json = await res.json();
     setDeleting(null);
     if (json.success) router.refresh();
     else alert(json.message ?? "Delete failed");
   };
 
-  const columns: Column<DocumentRow>[] = useMemo(
+  const columns: Column<Kfc21Row>[] = useMemo(
     () => [
       { key: "_sl", label: "#", className: "w-12 text-faint", render: (_r, i) => i + 1 },
       {
@@ -50,23 +43,24 @@ export default function DocumentList({ rows }: { rows: DocumentRow[] }) {
         render: (r) => <span className="font-medium text-fg">{r.title || "—"}</span>,
       },
       {
-        key: "doc_type",
-        label: "Type",
-        value: (r) => (r.doc_type ? TYPE_LABEL[r.doc_type] ?? r.doc_type : ""),
+        key: "form_date",
+        label: "Date",
+        value: (r) => (r.form_date ? String(r.form_date) : ""),
+        render: (r) => formatDate(r.form_date),
+      },
+      {
+        key: "item_count",
+        label: "Articles",
+        align: "right",
+        value: (r) => r.item_count,
         render: (r) => (
-          <span className="inline-flex rounded-md bg-brand-500/15 px-2 py-0.5 text-xs font-medium text-brand-400">
-            {r.doc_type ? TYPE_LABEL[r.doc_type] ?? r.doc_type : "—"}
+          <span className="inline-flex min-w-[1.75rem] justify-center rounded-full bg-brand-500/15 px-2 py-0.5 text-xs font-semibold text-brand-400">
+            {r.item_count}
           </span>
         ),
       },
-      {
-        key: "doc_date",
-        label: "Date",
-        value: (r) => (r.doc_date ? String(r.doc_date) : ""),
-        render: (r) => formatDate(r.doc_date),
-      },
-      ...creatorColumns<DocumentRow>(),
-      signedByColumn<DocumentRow>(),
+      ...creatorColumns<Kfc21Row>(),
+      signedByColumn<Kfc21Row>(),
       {
         key: "created_at",
         label: "Submitted On",
@@ -85,7 +79,7 @@ export default function DocumentList({ rows }: { rows: DocumentRow[] }) {
             <TableAction
               tone="edit"
               icon={Pencil}
-              href={`/report/document/${r.id}/edit`}
+              href={`/report/kfc-form-21/${r.id}/edit`}
               title="Edit / print"
             />
             <TableAction
@@ -104,8 +98,8 @@ export default function DocumentList({ rows }: { rows: DocumentRow[] }) {
 
   return (
     <DataTable
-      title="Documents"
-      subtitle={`${rows.length} saved documents`}
+      title="K.F.C. Form 21 — Survey Report of Stores"
+      subtitle={`${rows.length} saved forms`}
       columns={columns}
       rows={rows}
     />

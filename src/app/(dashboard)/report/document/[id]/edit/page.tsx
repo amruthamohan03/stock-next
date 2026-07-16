@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { documentT } from "@/db/schema";
 import { getSession } from "@/lib/session";
 import { getSignatories } from "@/lib/signatories";
+import { getKfcFormOptions } from "@/lib/kfc-forms";
 import DocumentBuilder, { type DocumentInitial } from "../../document-builder";
 
 const s = (v: unknown) => (v === null || v === undefined ? "" : String(v));
@@ -17,9 +18,10 @@ export default async function EditDocumentPage({
   const docId = Number(id);
   if (!docId) notFound();
 
-  const [session, signatories, rows] = await Promise.all([
+  const [session, signatories, kfcForms, rows] = await Promise.all([
     getSession(),
     getSignatories(),
+    getKfcFormOptions(),
     db
       .select()
       .from(documentT)
@@ -49,6 +51,7 @@ export default async function EditDocumentPage({
       defaultName={session?.fullName ?? ""}
       defaultDesignation={session?.roleName ?? ""}
       signatories={signatories}
+      kfcForms={kfcForms}
       initial={initial}
     />
   );

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { and, desc, eq, sql } from "drizzle-orm";
-import { Plus } from "lucide-react";
+import { ClipboardList, Plus } from "lucide-react";
 import { db } from "@/db";
 import { kfcForm13T, kfcForm13ItemT, usersT, roleMasterT } from "@/db/schema";
 import { buttonClasses } from "@/components/ui/button";
@@ -40,7 +40,13 @@ export default async function KfcForm13Page() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-between gap-2">
+        <Link
+          href="/report/kfc-form-21"
+          className={buttonClasses({ variant: "outline", size: "sm" })}
+        >
+          <ClipboardList className="h-4 w-4" /> KFC Form 21
+        </Link>
         <Link href="/report/kfc-form-13/new" className={buttonClasses({ size: "sm" })}>
           <Plus className="h-4 w-4" /> New KFC Form 13
         </Link>

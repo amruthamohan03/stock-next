@@ -457,6 +457,41 @@ export const kfcForm13ItemT = pgTable("kfc_form_13_item_t", {
   created_at: createdAt(),
 });
 
+/* ------------------------------------------------------------- kfc form 21 */
+// K.F.C. Form 21 — Survey Report of Stores (write-off of unserviceable articles).
+// New to the Next port. Header + article rows, mirroring the Form 13 shape.
+export const kfcForm21T = pgTable("kfc_form_21_t", {
+  id: pk(),
+  title: varchar({ length: 255 }).notNull(),
+  form_date: date(),
+  department_id: integer(),
+  signed_by: integer(), // "Officer in charge" (may differ from created_by)
+  signatory_name: varchar({ length: 150 }),
+  signatory_designation: varchar({ length: 150 }),
+  created_by: integer(),
+  updated_by: integer(),
+  created_at: createdAt(),
+  updated_at: updatedAt(),
+  display: varchar({ length: 1 }).default("Y"),
+});
+
+export const kfcForm21ItemT = pgTable("kfc_form_21_item_t", {
+  id: pk(),
+  form_id: integer().notNull(),
+  sl_no: integer().notNull(),
+  item_id: integer(), // col 2 source (item_master), nullable for free-text articles
+  quantity: integer().default(0), // col 1 — Number or Quantity
+  description: text(), // col 2 — Description of articles
+  book_rate: numeric({ precision: 12, scale: 2 }).default("0"), // col 3 — Value on the books: Rate
+  book_amount: numeric({ precision: 12, scale: 2 }).default("0"), // col 4 — Value on the books: Amount
+  assessed_value: numeric({ precision: 12, scale: 2 }).default("0"), // col 5 — Assessed value
+  date_of_receipt: date(), // col 6 — Date of receipt
+  cause_remarks: text(), // col 7 — cause of becoming unserviceable
+  authority_remarks: text(), // col 8 — remarks/orders of competent authority
+  display: varchar({ length: 1 }).default("Y"),
+  created_at: createdAt(),
+});
+
 /* ---------------------------------------------------------------- documents */
 // Composed print documents (submission / justification / essentiality / custom).
 // New to the Next port — stores the rich-text body + signatory block.

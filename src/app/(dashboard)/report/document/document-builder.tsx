@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { SignatorySelect } from "@/components/ui/signatory-select";
 import type { Signatory } from "@/lib/signatories";
+import type { KfcFormOption } from "@/lib/kfc-forms";
 
 type TemplateKey = "submission" | "justification" | "essentiality" | "custom";
 
@@ -87,15 +88,21 @@ const fmtDate = (iso: string) => {
   return `${d}.${m}.${y}`;
 };
 
+const inr = (n: number) => n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
+const escHtml = (s: string) =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
 export default function DocumentBuilder({
   defaultName,
   defaultDesignation,
   signatories,
+  kfcForms = [],
   initial,
 }: {
   defaultName: string;
   defaultDesignation: string;
   signatories: Signatory[];
+  kfcForms?: KfcFormOption[];
   initial?: DocumentInitial;
 }) {
   const router = useRouter();
@@ -131,6 +138,54 @@ export default function DocumentBuilder({
     setDocType(key);
     setTitle(TEMPLATES[key].title);
     if (editorRef.current) editorRef.current.innerHTML = TEMPLATES[key].body;
+  };
+
+  // Pull a saved KFC form's date, item table and total into the document.
+  const [basing, setBasing] = useState(false);
+  const prefillFromKfc = async (encoded: string) => {
+    if (!encoded) return;
+    const [kind, id] = encoded.split(":");
+    setMsg(null);
+    setBasing(true);
+    try {
+      const res = await fetch(`/api/kfc-form?kind=${kind}&id=${id}`);
+      const json = await res.json();
+      if (!json.success) {
+        setMsg({ ok: false, text: json.message ?? "Could not load the KFC form" });
+        return;
+      }
+      const { title: formTitle, date: formDate, items, total } = json.data as {
+        title: string;
+        date: string | null;
+        items: { sl: number; name: string; qty: number; rate: number; amount: number }[];
+        total: number;
+      };
+
+      if (formDate) setDate(String(formDate).slice(0, 10));
+
+      const rowsHtml = items
+        .map(
+          (it) =>
+            `<tr><td>${it.sl}</td><td>${escHtml(it.name)}</td><td>${it.qty || ""}</td><td>${
+              it.rate ? inr(it.rate) : ""
+            }</td><td>${it.amount ? inr(it.amount) : ""}</td></tr>`
+        )
+        .join("");
+
+      const dateLabel = formDate ? String(formDate).slice(0, 10).split("-").reverse().join(".") : "";
+      const block =
+        `<h3>Proposal — based on ${escHtml(formTitle)}${dateLabel ? ` dated ${dateLabel}` : ""}</h3>` +
+        `<table><thead><tr><th>Sl.No</th><th>Item</th><th>Qty</th><th>Rate (Rs.)</th><th>Amount (Rs.)</th></tr></thead>` +
+        `<tbody>${rowsHtml}</tbody></table>` +
+        `<p>Total: Rs. ${inr(total)}/-</p>`;
+
+      if (editorRef.current) editorRef.current.innerHTML += block;
+      setMsg({ ok: true, text: `Inserted ${items.length} item(s) from “${formTitle}”. Undo with Ctrl+Z.` });
+    } catch (e) {
+      setMsg({ ok: false, text: (e as Error).message });
+    } finally {
+      setBasing(false);
+    }
   };
 
   const save = async () => {
@@ -251,9 +306,20 @@ export default function DocumentBuilder({
                 }}
               />
             </div>
+            {kfcForms.length > 0 && (
+              <div className="w-72">
+                <Label>Based on KFC Form {basing && <span className="text-faint">(loading…)</span>}</Label>
+                <SearchableSelect
+                  value=""
+                  onChange={prefillFromKfc}
+                  options={kfcForms}
+                  placeholder="Insert items from a KFC form…"
+                />
+              </div>
+            )}
             <p className="pb-2 text-xs text-faint">
-              Picking a signatory fills the name &amp; designation block below (you, the
-              creator, may differ from the signer). Edit everything, then save or print.
+              Picking a signatory fills the name &amp; designation block below. Picking a
+              KFC form inserts its date, items &amp; total into the document.
             </p>
           </div>
 

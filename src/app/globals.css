@@ -138,3 +138,32 @@ body {
   background: var(--accent-soft);
   color: var(--accent-fg);
 }
+
+/* Print: show only the report area, hide app chrome and interactive controls */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .printable,
+  .printable * {
+    visibility: visible;
+  }
+  .printable {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 0;
+  }
+  .no-print {
+    display: none !important;
+  }
+  /* Force light ink-on-paper regardless of the active theme */
+  .printable {
+    color: #111 !important;
+    background: #fff !important;
+  }
+  .print-avoid-break {
+    break-inside: avoid;
+  }
+}

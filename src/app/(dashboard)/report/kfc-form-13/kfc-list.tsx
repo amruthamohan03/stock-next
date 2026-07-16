@@ -6,7 +6,7 @@ import { Pencil, Trash2 } from "lucide-react";
 import DataTable, { type Column } from "@/components/data-table";
 import { TableAction, TableActions } from "@/components/ui/table-action";
 import { creatorColumns, signedByColumn } from "@/components/table-columns";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatDateTime } from "@/lib/utils";
 
 export type KfcFormRow = {
   id: number;
@@ -63,9 +63,11 @@ export default function KfcList({ rows }: { rows: KfcFormRow[] }) {
       signedByColumn<KfcFormRow>(),
       {
         key: "created_at",
-        label: "Created",
+        label: "Submitted On",
         value: (r) => (r.created_at ? String(r.created_at) : ""),
-        render: (r) => formatDate(r.created_at),
+        render: (r) => (
+          <span className="whitespace-nowrap text-muted">{formatDateTime(r.created_at)}</span>
+        ),
       },
       {
         key: "_actions",

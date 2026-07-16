@@ -24,6 +24,9 @@ const DIRECT: Record<string, string> = {
   book: "/report/book",
   live: "/report/live",
   custom: "/report/custom",
+  kfcform21: "/report/kfc-form-21",
+  "report/kfc-form-21": "/report/kfc-form-21",
+  message: "/message",
 };
 
 /** Routes that are actually implemented in this port. */
@@ -39,6 +42,10 @@ export const IMPLEMENTED = new Set<string>([
   "/stock",
   "/stockbooks",
   "/report/live",
+  "/report/book",
+  "/report/custom",
+  "/report/kfc-form-21",
+  "/message",
   "/menu",
   "/user",
   "/role",

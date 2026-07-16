@@ -19,7 +19,7 @@ export default async function DashboardLayout({
       <AppSidebar menu={menu} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar user={session} />
-        <main className="mx-auto w-full max-w-7xl flex-1 overflow-x-hidden p-5 md:p-6 lg:p-8">
+        <main className="w-full flex-1 overflow-x-hidden p-4 sm:p-5 lg:p-6">
           {children}
         </main>
       </div>

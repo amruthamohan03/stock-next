@@ -201,6 +201,7 @@ export default function CrudTable({
         open={open}
         onClose={() => setOpen(false)}
         title={editing ? `Edit ${title}` : `Add ${title}`}
+        size="xl"
       >
         <form onSubmit={submit} className="space-y-4">
           {error && (
@@ -208,8 +209,9 @@ export default function CrudTable({
               {error}
             </div>
           )}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {fields.map((f) => (
-            <div key={f.name}>
+            <div key={f.name} className={f.type === "textarea" ? "sm:col-span-2" : ""}>
               <Label htmlFor={f.name}>
                 {f.label}
                 {f.required && <span className="text-red-500"> *</span>}
@@ -250,6 +252,7 @@ export default function CrudTable({
               )}
             </div>
           ))}
+          </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancel
