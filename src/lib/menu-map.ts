@@ -41,6 +41,7 @@ export const IMPLEMENTED = new Set<string>([
   "/indent",
   "/stock",
   "/stockbooks",
+  "/daybook",
   "/report/live",
   "/report/book",
   "/report/custom",
