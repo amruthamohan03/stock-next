@@ -24,6 +24,7 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { SignatorySelect } from "@/components/ui/signatory-select";
 import type { Signatory } from "@/lib/signatories";
 import type { KfcFormOption } from "@/lib/kfc-forms";
+import DocumentAttachment from "./document-attachment";
 
 type TemplateKey = "submission" | "justification" | "essentiality" | "custom";
 
@@ -39,6 +40,8 @@ export type DocumentInitial = {
   department: string;
   institution: string;
   signed_by: string;
+  attachment_name?: string | null;
+  attachment_type?: string | null;
 };
 
 const TEMPLATES: Record<TemplateKey, { label: string; title: string; body: string }> = {
@@ -47,12 +50,7 @@ const TEMPLATES: Record<TemplateKey, { label: string; title: string; body: strin
     title: "Submission",
     body: `<p>I hereby submit the proposal for the purchase of <b>[non-consumable equipment]</b> as part of the Annual Purchase for the financial year 2026-27.</p>
 <p>Item Type: [Non-Consumables]<br>Proposed Amount: Rs. [amount]/-</p>
-<h3>Proposal</h3>
-<table><thead><tr><th>Sl.No</th><th>Item</th><th>Qty</th><th>Rate (Rs.)</th><th>Amount (Rs.)</th></tr></thead>
-<tbody><tr><td>1</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>
-<tr><td>2</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>
-<tr><td>3</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr></tbody></table>
-<p>Total: Rs. [amount]/- ([amount in words] Only)</p>
+<div data-kfc-proposal><p><em>Select a KFC form in “Based on KFC Form” above to insert the proposal items and total here.</em></p></div>
 <p>Attachments:</p>
 <ul><li>Essentiality Certificate</li><li>Justification Report</li><li>KFC form 13</li></ul>
 <p>Kindly do the needful.</p>`,
@@ -91,6 +89,55 @@ const fmtDate = (iso: string) => {
 const inr = (n: number) => n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
 const escHtml = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/**
+ * Put the proposal `blockHtml` into the document's proposal position.
+ *  1. If the template's [data-kfc-proposal] slot exists → fill it.
+ *  2. Otherwise (older documents), remove any existing proposal blocks — the
+ *     static "Proposal" table and any previously inserted "Proposal — based on…"
+ *     block — and insert the fresh one where the first one was.
+ *  3. If there's no proposal at all → append at the end.
+ * A "block" is an <h3> heading + the following <table> + the following Total <p>.
+ */
+function placeProposal(editor: HTMLElement, blockHtml: string) {
+  const slot = editor.querySelector("[data-kfc-proposal]");
+  if (slot) {
+    slot.innerHTML = blockHtml;
+    return;
+  }
+
+  const isProposalHead = (h: Element) => {
+    const t = (h.textContent ?? "").trim().toLowerCase();
+    return t === "proposal" || t.startsWith("proposal —") || t.startsWith("proposal -");
+  };
+  const heads = Array.from(editor.querySelectorAll("h3")).filter(isProposalHead);
+
+  if (heads.length === 0) {
+    editor.innerHTML += blockHtml;
+    return;
+  }
+
+  // Insert the new content just before the first existing proposal heading…
+  const wrap = document.createElement("div");
+  wrap.innerHTML = blockHtml;
+  const anchor = heads[0];
+  const parent = anchor.parentNode;
+  if (parent) while (wrap.firstChild) parent.insertBefore(wrap.firstChild, anchor);
+
+  // …then remove every old proposal block (heading + its table + its total).
+  for (const h of heads) {
+    const next = h.nextElementSibling;
+    const table = next && next.tagName === "TABLE" ? next : null;
+    const afterTable = table ? table.nextElementSibling : next;
+    const totalP =
+      afterTable && afterTable.tagName === "P" && /^total/i.test((afterTable.textContent ?? "").trim())
+        ? afterTable
+        : null;
+    h.remove();
+    table?.remove();
+    totalP?.remove();
+  }
+}
 
 export default function DocumentBuilder({
   defaultName,
@@ -179,8 +226,10 @@ export default function DocumentBuilder({
         `<tbody>${rowsHtml}</tbody></table>` +
         `<p>Total: Rs. ${inr(total)}/-</p>`;
 
-      if (editorRef.current) editorRef.current.innerHTML += block;
-      setMsg({ ok: true, text: `Inserted ${items.length} item(s) from “${formTitle}”. Undo with Ctrl+Z.` });
+      // Fill the proposal slot (or replace an older static/inserted proposal).
+      if (editorRef.current) placeProposal(editorRef.current, block);
+
+      setMsg({ ok: true, text: `Inserted ${items.length} item(s) from “${formTitle}” into the proposal.` });
     } catch (e) {
       setMsg({ ok: false, text: (e as Error).message });
     } finally {
@@ -338,6 +387,29 @@ export default function DocumentBuilder({
               </button>
             ))}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Attachment (PDF / image) — needs a saved document to attach to */}
+      <Card className="no-print">
+        <CardHeader>
+          <CardTitle>Attachment (PDF / Image)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {editing ? (
+            <DocumentAttachment
+              documentId={initial!.id}
+              attachment={
+                initial!.attachment_name
+                  ? { name: initial!.attachment_name, type: initial!.attachment_type ?? null }
+                  : null
+              }
+            />
+          ) : (
+            <p className="text-sm text-muted">
+              Save this document first, then reopen it to attach a PDF or image.
+            </p>
+          )}
         </CardContent>
       </Card>
 

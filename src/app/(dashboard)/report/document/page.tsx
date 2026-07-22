@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { Plus } from "lucide-react";
 import { db } from "@/db";
 import { documentT, usersT, roleMasterT } from "@/db/schema";
@@ -18,6 +18,7 @@ export default async function DocumentPage() {
       created_by_name: usersT.full_name,
       role_name: roleMasterT.role_name,
       signed_by_name: documentT.submitted_name,
+      has_attachment: sql<boolean>`(${documentT.attachment_path} is not null)`,
     })
     .from(documentT)
     .leftJoin(usersT, eq(documentT.created_by, usersT.id))

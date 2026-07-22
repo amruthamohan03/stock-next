@@ -507,6 +507,9 @@ export const documentT = pgTable("document_t", {
   department: varchar({ length: 255 }),
   institution: varchar({ length: 255 }),
   signed_by: integer(), // signatory user (may differ from created_by)
+  attachment_path: varchar({ length: 255 }), // stored filename of the uploaded doc (image/pdf)
+  attachment_name: varchar({ length: 255 }), // original filename
+  attachment_type: varchar({ length: 100 }), // MIME type
   created_by: integer(),
   updated_by: integer(),
   created_at: createdAt(),
