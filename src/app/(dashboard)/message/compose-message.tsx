@@ -1,19 +1,73 @@
 "use client";
 
-import { useState } from "react";
-import { Mail, MessageCircle, Send, Loader2 } from "lucide-react";
+import { useRef, useState } from "react";
+import {
+  Mail,
+  MessageCircle,
+  Send,
+  Loader2,
+  Paperclip,
+  X,
+  Bold,
+  Italic,
+  Underline,
+  Heading,
+  List,
+  ListOrdered,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  Eraser,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 
+const MAX_TOTAL_BYTES = 15 * 1024 * 1024; // keep in sync with the API route
+const fmtSize = (n: number) =>
+  n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / (1024 * 1024)).toFixed(1)} MB`;
+
 export default function ComposeMessage() {
-  const [message, setMessage] = useState("");
+  // Rich-text body. Kept in a ref (not state) so typing never re-renders and
+  // resets the caret; we read innerHTML / innerText when sending.
+  const editorRef = useRef<HTMLDivElement>(null);
+  const readHtml = () => editorRef.current?.innerHTML ?? "";
+  const readText = () => editorRef.current?.innerText ?? "";
+
+  const exec = (command: string, value?: string) => {
+    document.execCommand(command, false, value);
+    editorRef.current?.focus();
+  };
+
+  const tools: { icon: React.ComponentType<{ className?: string }>; label: string; run: () => void }[] = [
+    { icon: Bold, label: "Bold", run: () => exec("bold") },
+    { icon: Italic, label: "Italic", run: () => exec("italic") },
+    { icon: Underline, label: "Underline", run: () => exec("underline") },
+    { icon: Heading, label: "Heading", run: () => exec("formatBlock", "H3") },
+    { icon: List, label: "Bullet list", run: () => exec("insertUnorderedList") },
+    { icon: ListOrdered, label: "Numbered list", run: () => exec("insertOrderedList") },
+    { icon: AlignLeft, label: "Align left", run: () => exec("justifyLeft") },
+    { icon: AlignCenter, label: "Align center", run: () => exec("justifyCenter") },
+    { icon: AlignRight, label: "Align right", run: () => exec("justifyRight") },
+    { icon: Eraser, label: "Clear formatting", run: () => exec("removeFormat") },
+  ];
 
   // Email
   const [to, setTo] = useState("");
   const [subject, setSubject] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [sending, setSending] = useState(false);
   const [emailMsg, setEmailMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const totalSize = files.reduce((s, f) => s + f.size, 0);
+
+  const addFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = Array.from(e.target.files ?? []);
+    if (picked.length) setFiles((prev) => [...prev, ...picked]);
+    e.target.value = ""; // allow re-picking the same file
+  };
+  const removeFile = (i: number) => setFiles((prev) => prev.filter((_, n) => n !== i));
 
   // WhatsApp
   const [phone, setPhone] = useState("");
@@ -21,25 +75,38 @@ export default function ComposeMessage() {
 
   const sendEmail = async () => {
     setEmailMsg(null);
-    if (!message.trim()) return setEmailMsg({ ok: false, text: "Type a message first." });
+    if (!readText().trim()) return setEmailMsg({ ok: false, text: "Type a message first." });
     if (!to.trim()) return setEmailMsg({ ok: false, text: "Enter a recipient email." });
+    if (totalSize > MAX_TOTAL_BYTES)
+      return setEmailMsg({
+        ok: false,
+        text: `Attachments total ${fmtSize(totalSize)} — the limit is ${fmtSize(MAX_TOTAL_BYTES)}.`,
+      });
+
     setSending(true);
-    const res = await fetch("/api/message/email", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ to, subject, message }),
-    });
+    const fd = new FormData();
+    fd.append("to", to);
+    fd.append("subject", subject);
+    // Plain text for the text/plain part; HTML for the styled version.
+    fd.append("message", readText());
+    fd.append("messageHtml", readHtml());
+    for (const f of files) fd.append("files", f);
+
+    const res = await fetch("/api/message/email", { method: "POST", body: fd });
     const json = await res.json();
     setSending(false);
     setEmailMsg({ ok: !!json.success, text: json.message ?? (json.success ? "Sent." : "Failed.") });
+    if (json.success) setFiles([]);
   };
 
   const sendWhatsApp = () => {
     setWaMsg(null);
-    if (!message.trim()) return setWaMsg("Type a message first.");
+    // WhatsApp links carry plain text only — use the editor's text, not its HTML.
+    const text = readText().trim();
+    if (!text) return setWaMsg("Type a message first.");
     const digits = phone.replace(/[^\d]/g, ""); // country code + number, digits only
     const base = digits ? `https://wa.me/${digits}` : "https://wa.me/";
-    const url = `${base}?text=${encodeURIComponent(message)}`;
+    const url = `${base}?text=${encodeURIComponent(text)}`;
     window.open(url, "_blank", "noopener");
     setWaMsg(
       digits
@@ -62,18 +129,47 @@ export default function ComposeMessage() {
           <CardTitle>Message</CardTitle>
         </CardHeader>
         <CardContent>
-          <Label htmlFor="msg">Message text</Label>
-          <textarea
-            id="msg"
-            rows={6}
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Type your message here…"
-            className="w-full rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-fg shadow-sm transition-colors placeholder:text-faint focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+          <Label>Message</Label>
+
+          {/* Formatting toolbar */}
+          <div className="flex flex-wrap items-center gap-1 rounded-t-lg border border-line bg-elevated p-1">
+            {tools.map((t) => (
+              <button
+                key={t.label}
+                type="button"
+                title={t.label}
+                onMouseDown={(e) => e.preventDefault()} // keep the caret/selection
+                onClick={t.run}
+                className="rounded p-2 text-muted transition-colors hover:bg-card hover:text-fg"
+              >
+                <t.icon className="h-4 w-4" />
+              </button>
+            ))}
+          </div>
+
+          <div
+            ref={editorRef}
+            contentEditable
+            suppressContentEditableWarning
+            data-placeholder="Type your message here…"
+            className="msg-body min-h-[10rem] w-full rounded-b-lg border border-t-0 border-line bg-elevated px-3 py-2 text-sm text-fg shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
           />
+
           <p className="mt-1 text-xs text-faint">
-            The same message text is used for both email and WhatsApp.
+            Formatting is used in the email. WhatsApp gets the plain text version
+            (formatting is dropped there).
           </p>
+
+          <style>{`
+            .msg-body:empty:before {
+              content: attr(data-placeholder);
+              color: var(--faint);
+            }
+            .msg-body p { margin: 0 0 8px; }
+            .msg-body h3 { font-weight: 700; font-size: 1rem; margin: 10px 0 6px; }
+            .msg-body ul { list-style: disc; padding-left: 1.4rem; margin: 0 0 8px; }
+            .msg-body ol { list-style: decimal; padding-left: 1.4rem; margin: 0 0 8px; }
+          `}</style>
         </CardContent>
       </Card>
 
@@ -104,6 +200,56 @@ export default function ComposeMessage() {
                 placeholder="Subject line"
               />
             </div>
+            {/* Attachments */}
+            <div>
+              <Label>Attachments</Label>
+              <input
+                ref={fileRef}
+                type="file"
+                multiple
+                onChange={addFiles}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-line bg-elevated/50 px-3 py-2.5 text-sm text-muted transition-colors hover:border-accent hover:text-fg"
+              >
+                <Paperclip className="h-4 w-4" /> Attach files
+              </button>
+
+              {files.length > 0 && (
+                <ul className="mt-2 space-y-1">
+                  {files.map((f, i) => (
+                    <li
+                      key={`${f.name}-${i}`}
+                      className="flex items-center justify-between gap-2 rounded-md border border-line bg-elevated px-2.5 py-1.5 text-xs"
+                    >
+                      <span className="min-w-0 flex-1 truncate text-fg">{f.name}</span>
+                      <span className="shrink-0 text-faint">{fmtSize(f.size)}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeFile(i)}
+                        className="shrink-0 rounded p-0.5 text-muted hover:bg-red-500/10 hover:text-red-500"
+                        aria-label={`Remove ${f.name}`}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {files.length > 0 && (
+                <p
+                  className={`mt-1 text-xs ${
+                    totalSize > MAX_TOTAL_BYTES ? "text-red-500" : "text-faint"
+                  }`}
+                >
+                  {files.length} file(s) · {fmtSize(totalSize)} of {fmtSize(MAX_TOTAL_BYTES)}
+                </p>
+              )}
+            </div>
+
             {emailMsg && (
               <div
                 className={`rounded-lg px-3 py-2 text-sm ring-1 ${
@@ -143,6 +289,10 @@ export default function ComposeMessage() {
               />
               <p className="mt-1 text-xs text-faint">
                 Include the country code (91 for India). Leave blank to pick a contact in WhatsApp.
+              </p>
+              <p className="mt-1 text-xs text-faint">
+                WhatsApp sends the message text only — attachments go by email. You can
+                add files in WhatsApp yourself before pressing Send.
               </p>
             </div>
             {waMsg && (

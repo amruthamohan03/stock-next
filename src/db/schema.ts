@@ -154,6 +154,126 @@ export const departmentMasterT = pgTable("department_master_t", {
   display: varchar({ length: 1 }).default("Y"),
 });
 
+/* ------------------------------------------------------------------ staff */
+// Staff / faculty list — the roster consumed by timetable & duty-list features.
+// New to the Next port.
+export const staffT = pgTable("staff_t", {
+  id: pk(),
+  staff_code: varchar({ length: 50 }), // employee / staff ID
+  staff_name: varchar({ length: 255 }).notNull(),
+  designation: varchar({ length: 150 }), // e.g. Lecturer, Workshop Instructor
+  department_id: integer(),
+  staff_type: varchar({ length: 20 }).default("TEACHING"), // TEACHING | NON_TEACHING
+  staff_category: varchar({ length: 20 }).default("FACULTY"), // FACULTY | LAB_STAFF | OFFICE_STAFF | OTHER
+  posting_type: varchar({ length: 20 }).default("PERMANENT"), // PERMANENT | GUEST
+  qualification: varchar({ length: 255 }),
+  subjects: text(), // subjects/specialization — for timetable & duty allocation
+  max_periods_per_week: integer().default(0), // teaching load for the timetable
+  email: varchar({ length: 150 }),
+  phone: varchar({ length: 20 }),
+  gender: varchar({ length: 10 }),
+  date_of_joining: date(),
+  created_by: integer(),
+  updated_by: integer(),
+  created_at: createdAt(),
+  updated_at: updatedAt(),
+  display: varchar({ length: 1 }).default("Y"),
+});
+
+/* ------------------------------------------------------------- timetable */
+// Weekly class timetable. Header + its period/time structure + the day×period
+// grid of subject/faculty/batch slots. New to the Next port.
+export const timetableT = pgTable("timetable_t", {
+  id: pk(),
+  title: varchar({ length: 255 }).notNull(),
+  department_id: integer(),
+  semester: varchar({ length: 20 }),
+  scheme: varchar({ length: 40 }),
+  academic_year: varchar({ length: 20 }),
+  display: varchar({ length: 1 }).default("Y"),
+  created_by: integer(),
+  updated_by: integer(),
+  created_at: createdAt(),
+  updated_at: updatedAt(),
+});
+
+export const timetablePeriodT = pgTable("timetable_period_t", {
+  id: pk(),
+  timetable_id: integer().notNull(),
+  period_no: integer().notNull(), // position in the day (0-based)
+  label: varchar({ length: 50 }),
+  start_time: varchar({ length: 10 }), // "09:20"
+  end_time: varchar({ length: 10 }),
+  fri_start_time: varchar({ length: 10 }), // optional Friday-specific time (e.g. later lunch)
+  fri_end_time: varchar({ length: 10 }),
+  is_break: integer().default(0), // 1 = break/lunch (no classes)
+});
+
+export const timetableSlotT = pgTable("timetable_slot_t", {
+  id: pk(),
+  timetable_id: integer().notNull(),
+  day: varchar({ length: 3 }).notNull(), // MON..FRI
+  period_no: integer().notNull(),
+  subject_id: integer(),
+  staff_id: integer(),
+  batch: varchar({ length: 50 }),
+  display: varchar({ length: 1 }).default("Y"),
+});
+
+// Qualification master — academic qualifications a staff can hold.
+export const qualificationMasterT = pgTable("qualification_master_t", {
+  id: pk(),
+  qualification_name: varchar({ length: 150 }).notNull(),
+  display: varchar({ length: 1 }).default("Y"),
+  created_by: integer(),
+  updated_by: integer(),
+  created_at: createdAt(),
+  updated_at: updatedAt(),
+});
+
+// Designation master — the roles staff can hold (Lecturer, Lab Assistant, …).
+export const designationMasterT = pgTable("designation_master_t", {
+  id: pk(),
+  designation_name: varchar({ length: 150 }).notNull(),
+  staff_type: varchar({ length: 20 }).default("TEACHING"), // TEACHING | NON_TEACHING
+  staff_category: varchar({ length: 20 }).default("FACULTY"), // FACULTY | LAB_STAFF | OFFICE_STAFF | OTHER
+  display: varchar({ length: 1 }).default("Y"),
+  created_by: integer(),
+  updated_by: integer(),
+  created_at: createdAt(),
+  updated_at: updatedAt(),
+});
+
+// Subject master — subjects/papers taught, consumed by timetable & mappings.
+export const subjectMasterT = pgTable("subject_master_t", {
+  id: pk(),
+  subject_code: varchar({ length: 50 }),
+  subject_name: varchar({ length: 255 }).notNull(),
+  department_id: integer(),
+  semester: varchar({ length: 20 }), // e.g. "S3" / "1"
+  scheme: varchar({ length: 40 }), // e.g. "Revision 2021"
+  course_category: varchar({ length: 120 }), // e.g. "Programme core course"
+  subject_type: varchar({ length: 20 }).default("THEORY"), // THEORY | PRACTICAL
+  lecture_hours: integer().default(0), // L (contact hours/week)
+  tutorial_hours: integer().default(0), // T
+  practical_hours: integer().default(0), // P
+  credits: numeric({ precision: 4, scale: 1 }),
+  display: varchar({ length: 1 }).default("Y"),
+  created_by: integer(),
+  updated_by: integer(),
+  created_at: createdAt(),
+  updated_at: updatedAt(),
+});
+
+// Subject ↔ Faculty (staff) mapping — which faculty can handle which subject.
+export const subjectFacultyT = pgTable("subject_faculty_t", {
+  id: pk(),
+  subject_id: integer().notNull(),
+  staff_id: integer().notNull(),
+  created_by: integer(),
+  created_at: createdAt(),
+});
+
 /* ------------------------------------------------------------------ item masters */
 
 export const itemMasterT = pgTable("item_master_t", {
@@ -507,6 +627,9 @@ export const documentT = pgTable("document_t", {
   department: varchar({ length: 255 }),
   institution: varchar({ length: 255 }),
   signed_by: integer(), // signatory user (may differ from created_by)
+  attachment_path: varchar({ length: 255 }), // stored filename of the uploaded doc (image/pdf)
+  attachment_name: varchar({ length: 255 }), // original filename
+  attachment_type: varchar({ length: 100 }), // MIME type
   created_by: integer(),
   updated_by: integer(),
   created_at: createdAt(),

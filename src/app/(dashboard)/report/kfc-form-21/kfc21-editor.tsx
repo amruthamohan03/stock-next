@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { SignatorySelect } from "@/components/ui/signatory-select";
+import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import { TableAction } from "@/components/ui/table-action";
 import type { KfcItem } from "../kfc-form-13/items";
 import type { Signatory } from "@/lib/signatories";
@@ -313,12 +314,11 @@ export default function KfcForm21Editor({
                         placeholder="Select item…"
                       />
                     </div>
-                    <textarea
+                    <AutoGrowTextarea
                       value={r.description}
                       onChange={(e) => setRow(r.key, { description: e.target.value })}
-                      rows={2}
                       placeholder="Description of article…"
-                      className={`${cellInput} resize-none whitespace-pre-wrap`}
+                      className={cellInput}
                     />
                   </td>
                   {/* 3 Rate */}

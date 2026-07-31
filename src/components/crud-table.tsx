@@ -16,7 +16,7 @@ const PAGE_SIZE = 10;
 export type FieldDef = {
   name: string;
   label: string;
-  type?: "text" | "number" | "textarea" | "select" | "password" | "email";
+  type?: "text" | "number" | "textarea" | "select" | "password" | "email" | "date";
   required?: boolean;
   options?: { value: string | number; label: string }[];
   default?: string | number;
@@ -242,7 +242,9 @@ export default function CrudTable({
                         ? "password"
                         : f.type === "email"
                           ? "email"
-                          : "text"
+                          : f.type === "date"
+                            ? "date"
+                            : "text"
                   }
                   placeholder={f.placeholder}
                   value={form[f.name] ?? ""}
@@ -275,14 +277,28 @@ function Badge({ value }: { value: string }) {
     C: "bg-brand-500/15 text-brand-400 ring-brand-500/25",
     PUBLIC: "bg-indigo-500/15 text-indigo-400 ring-indigo-500/25",
     PRIVATE: "bg-amber-500/15 text-amber-500 ring-amber-500/25",
+    PERMANENT: "bg-emerald-500/15 text-emerald-500 ring-emerald-500/25",
+    GUEST: "bg-amber-500/15 text-amber-500 ring-amber-500/25",
+    TEACHING: "bg-brand-500/15 text-brand-400 ring-brand-500/25",
+    NON_TEACHING: "bg-slate-500/15 text-slate-400 ring-slate-500/25",
+    FACULTY: "bg-brand-500/15 text-brand-400 ring-brand-500/25",
+    LAB_STAFF: "bg-cyan-500/15 text-cyan-500 ring-cyan-500/25",
+    OFFICE_STAFF: "bg-violet-500/15 text-violet-400 ring-violet-500/25",
+    OTHER: "bg-slate-500/15 text-slate-400 ring-slate-500/25",
   };
+  // Show a readable label for coded values (LAB_STAFF → "Lab Staff"); keep short
+  // codes like Y/N as-is.
+  const label =
+    value.length <= 2
+      ? value
+      : value.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
   return (
     <span
       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${
         map[v] ?? "bg-slate-500/15 text-muted ring-slate-500/25"
       }`}
     >
-      {value || "—"}
+      {label || "—"}
     </span>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Paperclip } from "lucide-react";
 import DataTable, { type Column } from "@/components/data-table";
 import { TableAction, TableActions } from "@/components/ui/table-action";
 import { creatorColumns, signedByColumn } from "@/components/table-columns";
@@ -17,6 +17,7 @@ export type DocumentRow = {
   created_by_name: string | null;
   role_name: string | null;
   signed_by_name: string | null;
+  has_attachment: boolean;
 };
 
 const TYPE_LABEL: Record<string, string> = {
@@ -74,6 +75,19 @@ export default function DocumentList({ rows }: { rows: DocumentRow[] }) {
         render: (r) => (
           <span className="whitespace-nowrap text-muted">{formatDateTime(r.created_at)}</span>
         ),
+      },
+      {
+        key: "has_attachment",
+        label: "File",
+        align: "right",
+        className: "w-14",
+        value: (r) => (r.has_attachment ? "yes" : ""),
+        render: (r) =>
+          r.has_attachment ? (
+            <Paperclip className="ml-auto h-4 w-4 text-accent" aria-label="Has attachment" />
+          ) : (
+            <span className="text-faint">—</span>
+          ),
       },
       {
         key: "_actions",

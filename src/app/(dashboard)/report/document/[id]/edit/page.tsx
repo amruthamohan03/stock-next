@@ -44,6 +44,8 @@ export default async function EditDocumentPage({
     department: s(doc.department),
     institution: s(doc.institution),
     signed_by: s(doc.signed_by),
+    attachment_name: doc.attachment_name ?? null,
+    attachment_type: doc.attachment_type ?? null,
   };
 
   return (

@@ -2,10 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Printer, Trash2, Save, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Printer, Trash2, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import { SignatorySelect } from "@/components/ui/signatory-select";
 import { TableAction } from "@/components/ui/table-action";
 import type { KfcItem } from "./items";
@@ -84,7 +85,6 @@ export default function KfcForm13Editor({
       ? initial.items.map((it, i) => ({ key: i, ...it }))
       : [blank(0)]
   );
-  const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -104,12 +104,6 @@ export default function KfcForm13Editor({
     setRows((rs) => [...rs, ...Array.from({ length: n }, () => blank(keyRef.n++))]);
   const removeRow = (key: number) =>
     setRows((rs) => (rs.length === 1 ? rs : rs.filter((r) => r.key !== key)));
-  const toggleExpand = (key: number) =>
-    setExpanded((s) => {
-      const next = new Set(s);
-      next.has(key) ? next.delete(key) : next.add(key);
-      return next;
-    });
 
   // Selecting an item fills col 2 (article) + col 3 (stock on hand).
   const pickItem = (key: number, value: string) => {
@@ -329,7 +323,6 @@ export default function KfcForm13Editor({
             </thead>
             <tbody>
               {rows.map((r, i) => {
-                const isOpen = expanded.has(r.key);
                 return (
                   <tr key={r.key} className="align-top">
                     {/* 1 */}
@@ -338,30 +331,19 @@ export default function KfcForm13Editor({
                     </td>
                     {/* 2 Articles — item picker + expandable description */}
                     <td className="border border-slate-400 px-1 py-1">
-                      <div className="no-print mb-1 flex items-center gap-1">
-                        <div className="min-w-0 flex-1">
-                          <SearchableSelect
-                            value={r.item_id}
-                            onChange={(v) => pickItem(r.key, v)}
-                            options={itemOpts}
-                            placeholder="Select item…"
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => toggleExpand(r.key)}
-                          className="shrink-0 rounded-md p-1.5 text-muted hover:bg-elevated hover:text-fg"
-                          title={isOpen ? "Collapse" : "Expand"}
-                        >
-                          {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                        </button>
+                      <div className="no-print mb-1">
+                        <SearchableSelect
+                          value={r.item_id}
+                          onChange={(v) => pickItem(r.key, v)}
+                          options={itemOpts}
+                          placeholder="Select item…"
+                        />
                       </div>
-                      <textarea
+                      <AutoGrowTextarea
                         value={r.article}
                         onChange={(e) => setRow(r.key, { article: e.target.value })}
-                        rows={isOpen ? 10 : 2}
                         placeholder="Full description / specification…"
-                        className={`${cellInput} resize-none whitespace-pre-wrap`}
+                        className={cellInput}
                       />
                     </td>
                     {/* 3 Stock on hand (auto) */}
