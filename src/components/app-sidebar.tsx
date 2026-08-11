@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -74,6 +74,19 @@ function iconFor(node: MenuNode): LucideIcon {
 }
 
 export default function AppSidebar({ menu }: { menu: MenuNode[] }) {
+  const pathname = usePathname();
+  // Accordion: exactly one main menu is expanded at a time.
+  const routeGroupId =
+    menu.find(
+      (n) => n.children.length > 0 && n.children.some((c) => pathname === toRoute(c.url))
+    )?.id ?? null;
+  const [openId, setOpenId] = useState<number | null>(routeGroupId);
+
+  // Follow navigation — open the group that owns the current route.
+  useEffect(() => {
+    if (routeGroupId !== null) setOpenId(routeGroupId);
+  }, [routeGroupId]);
+
   return (
     <aside className="hidden w-64 shrink-0 flex-col border-r border-line bg-card md:flex">
       <div className="flex h-14 items-center gap-2.5 border-b border-line px-5">
@@ -87,7 +100,12 @@ export default function AppSidebar({ menu }: { menu: MenuNode[] }) {
       </div>
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
         {menu.map((node) => (
-          <MenuItem key={node.id} node={node} />
+          <MenuItem
+            key={node.id}
+            node={node}
+            open={openId === node.id}
+            onToggle={() => setOpenId((cur) => (cur === node.id ? null : node.id))}
+          />
         ))}
       </nav>
       <div className="border-t border-line px-4 py-3 text-[11px] text-faint">
@@ -97,14 +115,19 @@ export default function AppSidebar({ menu }: { menu: MenuNode[] }) {
   );
 }
 
-function MenuItem({ node }: { node: MenuNode }) {
+function MenuItem({
+  node,
+  open,
+  onToggle,
+}: {
+  node: MenuNode;
+  open: boolean;
+  onToggle: () => void;
+}) {
   const pathname = usePathname();
   const hasChildren = node.children.length > 0;
   const route = toRoute(node.url);
   const active = pathname === route;
-  const [open, setOpen] = useState(
-    hasChildren && node.children.some((c) => pathname === toRoute(c.url))
-  );
 
   const Icon = iconFor(node);
 
@@ -112,8 +135,11 @@ function MenuItem({ node }: { node: MenuNode }) {
     return (
       <div>
         <button
-          onClick={() => setOpen((o) => !o)}
-          className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-elevated hover:text-fg"
+          onClick={onToggle}
+          className={cn(
+            "flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-elevated hover:text-fg",
+            open ? "bg-elevated text-fg" : "text-muted"
+          )}
         >
           <span className="flex items-center gap-2.5">
             <Icon className="h-[1.15rem] w-[1.15rem] shrink-0 text-muted" />
