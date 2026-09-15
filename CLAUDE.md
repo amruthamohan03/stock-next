@@ -152,6 +152,48 @@ will not theme correctly.
   tokens, so most pages inherit the theme for free. Fix look-and-feel there once
   rather than per page.
 
+## Feedback & error handling (required)
+
+Every write the user triggers must say what happened, and no failure may leave
+the UI stuck. These are hard rules — don't hand-roll a banner, and never call
+`alert()` or `confirm()`:
+
+- **Never call the browser's `alert()` / `confirm()` / `prompt()`.** They block
+  the tab, can't be themed, and show the origin ("localhost:3000 says") above
+  your message. Use the two providers mounted in `(dashboard)/layout.tsx`:
+  - **Messages → `useToast()`** (`src/components/ui/toast.tsx`):
+    `toast.success("Saved")`, `.error()`, `.warning()`, `.info()`. Toasts stack
+    (max 4), auto-dismiss (errors linger longest), and set `role="alert"` for
+    errors / `role="status"` otherwise.
+  - **Confirmations → `useConfirm()`** (`src/components/ui/confirm.tsx`):
+    `if (!(await confirm({ title, description, tone: "danger" }))) return;`
+    It resolves to a boolean, so the call site still reads top-to-bottom.
+    Use `tone: "danger"` for anything destructive.
+- **Never call `fetch()` directly from a client component.** Use
+  `apiRequest()` (or `apiPost/apiPut/apiPatch/apiDelete`) from
+  `src/lib/api-client.ts`. A bare `await res.json()` throws on a 500 that
+  returns Next's HTML error page, on a dropped connection, and on an expired
+  session that redirects to `/login` — and because the caller is normally
+  mid-`setSaving(true)`, the button sticks on "Saving…" for ever and the user
+  is told nothing. `apiRequest` never throws: it always resolves to
+  `{ success, message, status, data }` with a readable message for each of
+  those cases.
+- **`toast.fromResult(result, { success, error })`** is the one-liner for the
+  common path — it picks the tone, shows `result.message`, and returns the
+  boolean so you can write
+  `if (toast.fromResult(result)) router.refresh();`.
+- **Where the message goes.** A toast for anything the user triggered from a
+  list or a row action. Keep an **inline** message instead (or as well) when
+  the error belongs next to the field being fixed — a validation error inside
+  a `CrudTable` dialog, or a long editor where the toast would scroll out of
+  view before the user gets back to Save. `CrudTable`, `kfc-editor` and
+  `document-builder` show the intended mix.
+- **Route handlers keep answering `{ success, message }`** with a real HTTP
+  status (400 validation, 401 unauthenticated, 403 refused, 404 missing, 500
+  unexpected). `apiRequest` reads `message` straight through to the toast, so
+  the server's wording is what the user sees — make it a sentence they can act
+  on, not an exception dump.
+
 ## Code quality (required)
 
 - **No redundant code.** Reuse existing shared components, helpers and route

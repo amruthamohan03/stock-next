@@ -10,6 +10,9 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Pagination } from "@/components/ui/pagination";
 import { Modal } from "@/components/ui/modal";
 import { TableAction, TableActions } from "@/components/ui/table-action";
+import { useToast } from "@/components/ui/toast";
+import { useConfirm } from "@/components/ui/confirm";
+import { apiDelete, apiRequest } from "@/lib/api-client";
 
 const PAGE_SIZE = 10;
 
@@ -46,6 +49,8 @@ export default function CrudTable({
   fields: FieldDef[];
 }) {
   const router = useRouter();
+  const toast = useToast();
+  const confirm = useConfirm();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Row | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
@@ -86,29 +91,31 @@ export default function CrudTable({
     setError(null);
     const payload: Record<string, unknown> = { ...form };
     if (editing) payload.id = editing.id;
-    const res = await fetch(`/api/masters/${apiKey}`, {
+    const result = await apiRequest(`/api/masters/${apiKey}`, {
       method: editing ? "PUT" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: payload,
     });
-    const json = await res.json();
     setSaving(false);
-    if (json.success) {
+    if (result.success) {
       setOpen(false);
+      toast.success(result.message || (editing ? "Record updated" : "Record saved"));
       router.refresh();
     } else {
-      setError(json.message ?? "Something went wrong");
+      // Errors stay in the dialog, beside the fields the user must fix.
+      setError(result.message);
     }
   };
 
   const remove = async (row: Row) => {
-    if (!confirm(`Delete this record? This can be undone in the database.`)) return;
-    const res = await fetch(`/api/masters/${apiKey}?id=${row.id}`, {
-      method: "DELETE",
+    const ok = await confirm({
+      title: "Delete this record?",
+      description: "It is soft-deleted, so it can be restored in the database.",
+      confirmLabel: "Delete",
+      tone: "danger",
     });
-    const json = await res.json();
-    if (json.success) router.refresh();
-    else alert(json.message ?? "Delete failed");
+    if (!ok) return;
+    const result = await apiDelete(`/api/masters/${apiKey}?id=${row.id}`);
+    if (toast.fromResult(result, { success: "Record deleted" })) router.refresh();
   };
 
   const filtered = rows.filter((r) =>

@@ -627,6 +627,9 @@ export const documentT = pgTable("document_t", {
   department: varchar({ length: 255 }),
   institution: varchar({ length: 255 }),
   signed_by: integer(), // signatory user (may differ from created_by)
+  // Workflow state: DRAFT -> VERIFIED -> SUBMITTED. SUBMITTED is the final,
+  // locked state — see src/lib/document-status.ts for the transition rules.
+  status: varchar({ length: 20 }).default("DRAFT"),
   attachment_path: varchar({ length: 255 }), // stored filename of the uploaded doc (image/pdf)
   attachment_name: varchar({ length: 255 }), // original filename
   attachment_type: varchar({ length: 100 }), // MIME type
@@ -634,6 +637,18 @@ export const documentT = pgTable("document_t", {
   updated_by: integer(),
   created_at: createdAt(),
   updated_at: updatedAt(),
+  display: varchar({ length: 1 }).default("Y"),
+});
+
+// Dated remarks against a document — an append-only trail, one row per remark,
+// soft-deleted like the masters.
+export const documentRemarkT = pgTable("document_remark_t", {
+  id: pk(),
+  document_id: integer().notNull(),
+  remark_date: date(),
+  remark: text().notNull(),
+  created_by: integer(),
+  created_at: createdAt(),
   display: varchar({ length: 1 }).default("Y"),
 });
 

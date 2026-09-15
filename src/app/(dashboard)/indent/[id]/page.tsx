@@ -15,7 +15,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { buttonClasses } from "@/components/ui/button";
 import { formatDate } from "@/lib/utils";
 import { Pencil, ArrowLeft, Package, Hash, Receipt } from "lucide-react";
-import { StatusBadge } from "../status-badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import BillAttachment from "../bill-attachment";
 
 export default async function IndentViewPage({

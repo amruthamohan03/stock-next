@@ -2,6 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/ui/toast";
+import { usePrompt } from "@/components/ui/confirm";
+import { apiPost } from "@/lib/api-client";
 import { Plus, Trash2, RotateCcw, Save } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -74,6 +77,8 @@ export default function IndentForm({
   initial?: IndentInitial;
 }) {
   const router = useRouter();
+  const toast = useToast();
+  const prompt = usePrompt();
   const editing = !!initial;
   const keyRef = useState(() => ({ n: initial?.items.length ?? 1 }))[0];
 
@@ -117,18 +122,25 @@ export default function IndentForm({
   };
 
   const addGroup = async () => {
-    const name = prompt("New group item name?")?.trim();
+    const name = (
+      await prompt({
+        title: "New group item",
+        description: "Give the group a name.",
+        placeholder: "Group name",
+        confirmLabel: "Add group",
+      })
+    )?.trim();
     if (!name) return;
-    const res = await fetch("/api/masters/group", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ group_name: name, display: "Y" }),
+    const result = await apiPost<{ data?: { id: number } }>("/api/masters/group", {
+      group_name: name,
+      display: "Y",
     });
-    const json = await res.json();
-    if (json.success && json.data?.id) {
-      setGroups((g) => [...g, { id: json.data.id, name }]);
+    const id = result.data?.data?.id;
+    if (result.success && id) {
+      setGroups((g) => [...g, { id, name }]);
+      toast.success(`Group "${name}" added`);
     } else {
-      alert(json.message ?? "Could not add group");
+      toast.error(result.message || "Could not add group");
     }
   };
 

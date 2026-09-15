@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/ui/toast";
+import { usePrompt } from "@/components/ui/confirm";
+import { apiRequest } from "@/lib/api-client";
 import {
   Bold,
   Italic,
@@ -24,6 +27,10 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { SignatorySelect } from "@/components/ui/signatory-select";
 import type { Signatory } from "@/lib/signatories";
 import type { KfcFormOption } from "@/lib/kfc-forms";
+import DocumentSheetStyle from "./document-sheet-style";
+import DocumentStatus from "./document-status";
+import DocumentRemarks, { type DocumentRemark } from "./document-remarks";
+import { isLocked } from "@/lib/document-status";
 import DocumentAttachment from "./document-attachment";
 
 type TemplateKey = "submission" | "justification" | "essentiality" | "custom";
@@ -42,6 +49,8 @@ export type DocumentInitial = {
   signed_by: string;
   attachment_name?: string | null;
   attachment_type?: string | null;
+  status: string;
+  remarks: DocumentRemark[];
 };
 
 const TEMPLATES: Record<TemplateKey, { label: string; title: string; body: string }> = {
@@ -145,15 +154,22 @@ export default function DocumentBuilder({
   signatories,
   kfcForms = [],
   initial,
+  isSuperAdmin = false,
 }: {
   defaultName: string;
   defaultDesignation: string;
   signatories: Signatory[];
   kfcForms?: KfcFormOption[];
   initial?: DocumentInitial;
+  isSuperAdmin?: boolean;
 }) {
   const router = useRouter();
+  const toast = useToast();
+  const prompt = usePrompt();
   const editing = !!initial;
+  // A submitted document is final: everything on this page goes read-only.
+  // Super Admin edits by reopening it first, not by bypassing the lock here.
+  const locked = isLocked(initial?.status);
   const editorRef = useRef<HTMLDivElement>(null);
   const [docType, setDocType] = useState<TemplateKey>(
     (initial?.doc_type as TemplateKey) || "submission"
@@ -182,6 +198,7 @@ export default function DocumentBuilder({
   }, [initial]);
 
   const applyTemplate = (key: TemplateKey) => {
+    if (locked) return;
     setDocType(key);
     setTitle(TEMPLATES[key].title);
     if (editorRef.current) editorRef.current.innerHTML = TEMPLATES[key].body;
@@ -190,18 +207,21 @@ export default function DocumentBuilder({
   // Pull a saved KFC form's date, item table and total into the document.
   const [basing, setBasing] = useState(false);
   const prefillFromKfc = async (encoded: string) => {
-    if (!encoded) return;
+    if (!encoded || locked) return;
     const [kind, id] = encoded.split(":");
     setMsg(null);
     setBasing(true);
     try {
-      const res = await fetch(`/api/kfc-form?kind=${kind}&id=${id}`);
-      const json = await res.json();
-      if (!json.success) {
-        setMsg({ ok: false, text: json.message ?? "Could not load the KFC form" });
+      const result = await apiRequest(`/api/kfc-form?kind=${kind}&id=${id}`);
+      if (!result.success) {
+        const text = result.message || "Could not load the KFC form";
+        setMsg({ ok: false, text });
+        toast.error(text);
         return;
       }
-      const { title: formTitle, date: formDate, items, total } = json.data as {
+      const { title: formTitle, date: formDate, items, total } = (
+        result.data as { data: unknown }
+      ).data as {
         title: string;
         date: string | null;
         items: { sl: number; name: string; qty: number; rate: number; amount: number }[];
@@ -238,16 +258,16 @@ export default function DocumentBuilder({
   };
 
   const save = async () => {
+    if (locked) return;
     setMsg(null);
     if (!title.trim()) {
       setMsg({ ok: false, text: "Title is required." });
       return;
     }
     setSaving(true);
-    const res = await fetch("/api/document", {
+    const result = await apiRequest("/api/document", {
       method: editing ? "PUT" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+      body: {
         id: initial?.id,
         title,
         doc_type: docType,
@@ -259,15 +279,18 @@ export default function DocumentBuilder({
         department,
         institution,
         signed_by: signedBy || null,
-      }),
+      },
     });
-    const json = await res.json();
     setSaving(false);
-    if (json.success) {
+    if (result.success) {
+      toast.success(result.message || `${editing ? "Updated" : "Saved"} Document`);
       router.push("/report/document");
       router.refresh();
     } else {
-      setMsg({ ok: false, text: json.message ?? "Save failed" });
+      // Keep the inline banner too: the editor is long, and the toast may
+      // scroll out of view before the user reaches the Save button again.
+      setMsg({ ok: false, text: result.message });
+      toast.error(result.message);
     }
   };
 
@@ -276,9 +299,13 @@ export default function DocumentBuilder({
     editorRef.current?.focus();
   };
 
-  const insertTable = () => {
-    const cols = Number(prompt("Number of columns?", "3"));
-    const rows = Number(prompt("Number of rows?", "3"));
+  const insertTable = async () => {
+    const cols = Number(
+      await prompt({ title: "Insert table", description: "How many columns?", defaultValue: "3", type: "number" })
+    );
+    const rows = Number(
+      await prompt({ title: "Insert table", description: "How many rows?", defaultValue: "3", type: "number" })
+    );
     if (!cols || !rows || cols < 1 || rows < 1) return;
     const cells = `<td>&nbsp;</td>`.repeat(cols);
     const body = `<tr>${cells}</tr>`.repeat(rows);
@@ -319,9 +346,11 @@ export default function DocumentBuilder({
             <Button variant="outline" size="sm" onClick={() => window.print()}>
               <Printer className="h-4 w-4" /> Print
             </Button>
-            <Button size="sm" onClick={save} disabled={saving}>
-              <Save className="h-4 w-4" /> {saving ? "Saving…" : editing ? "Update" : "Save"}
-            </Button>
+            {!locked && (
+              <Button size="sm" onClick={save} disabled={saving}>
+                <Save className="h-4 w-4" /> {saving ? "Saving…" : editing ? "Update" : "Save"}
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -390,13 +419,50 @@ export default function DocumentBuilder({
         </CardContent>
       </Card>
 
+      {/* Workflow status — only meaningful once the document has an id */}
+      {editing && (
+        <Card className="no-print">
+          <CardContent className="pt-5">
+            <DocumentStatus
+              documentId={initial!.id}
+              status={initial!.status}
+              isSuperAdmin={isSuperAdmin}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Remarks — a dated trail against the document, frozen once submitted */}
+      <Card className="no-print">
+        <CardHeader>
+          <CardTitle>Remarks</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {editing ? (
+            <DocumentRemarks
+              documentId={initial!.id}
+              remarks={initial!.remarks}
+              locked={locked}
+            />
+          ) : (
+            <p className="text-sm text-muted">
+              Save this document first, then reopen it to add remarks.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Attachment (PDF / image) — needs a saved document to attach to */}
       <Card className="no-print">
         <CardHeader>
           <CardTitle>Attachment (PDF / Image)</CardTitle>
         </CardHeader>
         <CardContent>
-          {editing ? (
+          {locked ? (
+            <p className="text-sm text-muted">
+              This document is submitted and locked — its attachment can no longer be changed.
+            </p>
+          ) : editing ? (
             <DocumentAttachment
               documentId={initial!.id}
               attachment={
@@ -414,62 +480,45 @@ export default function DocumentBuilder({
       </Card>
 
       {/* The document sheet (WYSIWYG + print target) */}
-      <div className="doc-sheet mx-auto max-w-3xl rounded-lg border border-slate-200 bg-white p-10 shadow-sm">
+      <div className="printable doc-sheet mx-auto max-w-3xl rounded-lg border border-slate-200 bg-white p-10 shadow-sm">
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
+          readOnly={locked}
           className="mb-6 w-full bg-transparent text-center text-xl font-bold tracking-wide text-[#1f4e79] outline-none focus:bg-brand-50/50"
         />
 
         <div
           ref={editorRef}
           className="doc-body min-h-[240px] focus:outline-none"
-          contentEditable
+          contentEditable={!locked}
           suppressContentEditableWarning
         />
 
         {/* Submitted-by / place / date block */}
         <div className="mt-16 flex items-end justify-between gap-6 text-sm">
           <div className="space-y-1">
-            <input value={place} onChange={(e) => setPlace(e.target.value)} className={`${field} w-40`} placeholder="Place" />
+            <input value={place} onChange={(e) => setPlace(e.target.value)} readOnly={locked} className={`${field} w-40`} placeholder="Place" />
             <input
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
+              readOnly={locked}
               className={`${field} no-print block w-40`}
             />
             {/* printed date (dd.mm.yyyy) */}
             <div className="print-only text-slate-800">{fmtDate(date)}</div>
           </div>
           <div className="space-y-1 text-right">
-            <input value={name} onChange={(e) => setName(e.target.value)} className={`${field} w-64 text-right font-medium`} placeholder="Name" />
-            <input value={designation} onChange={(e) => setDesignation(e.target.value)} className={`${field} w-64 text-right`} placeholder="Designation" />
-            <input value={department} onChange={(e) => setDepartment(e.target.value)} className={`${field} w-64 text-right`} placeholder="Department" />
-            <input value={institution} onChange={(e) => setInstitution(e.target.value)} className={`${field} w-64 text-right`} placeholder="Institution" />
+            <input value={name} onChange={(e) => setName(e.target.value)} readOnly={locked} className={`${field} w-64 text-right font-medium`} placeholder="Name" />
+            <input value={designation} onChange={(e) => setDesignation(e.target.value)} readOnly={locked} className={`${field} w-64 text-right`} placeholder="Designation" />
+            <input value={department} onChange={(e) => setDepartment(e.target.value)} readOnly={locked} className={`${field} w-64 text-right`} placeholder="Department" />
+            <input value={institution} onChange={(e) => setInstitution(e.target.value)} readOnly={locked} className={`${field} w-64 text-right`} placeholder="Institution" />
           </div>
         </div>
       </div>
 
-      <style>{`
-        .doc-body { font-size: 13px; line-height: 1.65; color: #1e293b; }
-        .doc-body p { margin: 0 0 10px; text-align: justify; }
-        .doc-body h3 { font-weight: 700; color: #1f4e79; font-size: 14px; margin: 14px 0 8px; }
-        .doc-body ul { list-style: disc; padding-left: 1.5rem; margin: 0 0 10px; }
-        .doc-body ol { list-style: decimal; padding-left: 1.5rem; margin: 0 0 10px; }
-        .doc-body table { border-collapse: collapse; width: 100%; margin: 10px 0; }
-        .doc-body th, .doc-body td { border: 1px solid #334155; padding: 4px 8px; text-align: left; vertical-align: top; font-size: 13px; }
-        .doc-field { border-bottom: 1px dashed #cbd5e1; }
-        .print-only { display: none; }
-        @media print {
-          aside, header, .no-print { display: none !important; }
-          main { padding: 0 !important; background: #fff !important; }
-          .doc-sheet { border: 0 !important; box-shadow: none !important; max-width: none !important; margin: 0 !important; padding: 0 !important; }
-          .doc-field { border-bottom: 0 !important; }
-          .print-only { display: block !important; }
-          .doc-body th, .doc-body td { border: 1px solid #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          @page { size: A4 portrait; margin: 18mm; }
-        }
-      `}</style>
+      <DocumentSheetStyle />
     </div>
   );
 }

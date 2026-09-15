@@ -2,8 +2,10 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useConfirm } from "@/components/ui/confirm";
 import { Upload, FileText, Trash2, ExternalLink, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { apiDelete } from "@/lib/api-client";
 
 export type Attachment = { name: string | null; type: string | null };
 
@@ -15,6 +17,7 @@ export default function DocumentAttachment({
   attachment: Attachment | null;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,13 +45,17 @@ export default function DocumentAttachment({
   };
 
   const remove = async () => {
-    if (!confirm("Remove the attached document?")) return;
+    const ok = await confirm({
+      title: "Remove the attached document?",
+      confirmLabel: "Remove",
+      tone: "danger",
+    });
+    if (!ok) return;
     setBusy(true);
-    const res = await fetch(`/api/document/attachment?id=${documentId}`, { method: "DELETE" });
-    const json = await res.json();
+    const result = await apiDelete(`/api/document/attachment?id=${documentId}`);
     setBusy(false);
-    if (json.success) router.refresh();
-    else setError(json.message ?? "Remove failed");
+    if (result.success) router.refresh();
+    else setError(result.message);
   };
 
   const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {

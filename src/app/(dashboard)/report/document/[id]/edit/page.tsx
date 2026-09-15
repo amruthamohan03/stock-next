@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { documentT } from "@/db/schema";
+import { documentRemarkT, documentT, usersT } from "@/db/schema";
+import { toDocStatus } from "@/lib/document-status";
 import { getSession } from "@/lib/session";
 import { getSignatories } from "@/lib/signatories";
 import { getKfcFormOptions } from "@/lib/kfc-forms";
@@ -18,7 +19,7 @@ export default async function EditDocumentPage({
   const docId = Number(id);
   if (!docId) notFound();
 
-  const [session, signatories, kfcForms, rows] = await Promise.all([
+  const [session, signatories, kfcForms, rows, remarkRows] = await Promise.all([
     getSession(),
     getSignatories(),
     getKfcFormOptions(),
@@ -27,6 +28,17 @@ export default async function EditDocumentPage({
       .from(documentT)
       .where(and(eq(documentT.id, docId), eq(documentT.display, "Y")))
       .limit(1),
+    db
+      .select({
+        id: documentRemarkT.id,
+        remark: documentRemarkT.remark,
+        remark_date: documentRemarkT.remark_date,
+        author: usersT.full_name,
+      })
+      .from(documentRemarkT)
+      .leftJoin(usersT, eq(usersT.id, documentRemarkT.created_by))
+      .where(and(eq(documentRemarkT.document_id, docId), eq(documentRemarkT.display, "Y")))
+      .orderBy(asc(documentRemarkT.id)),
   ]);
 
   const doc = rows[0];
@@ -46,6 +58,13 @@ export default async function EditDocumentPage({
     signed_by: s(doc.signed_by),
     attachment_name: doc.attachment_name ?? null,
     attachment_type: doc.attachment_type ?? null,
+    status: toDocStatus(doc.status),
+    remarks: remarkRows.map((r) => ({
+      id: r.id,
+      remark: r.remark,
+      remark_date: r.remark_date ?? null,
+      author: r.author ?? null,
+    })),
   };
 
   return (
@@ -55,6 +74,7 @@ export default async function EditDocumentPage({
       signatories={signatories}
       kfcForms={kfcForms}
       initial={initial}
+      isSuperAdmin={session?.roleId === 1}
     />
   );
 }

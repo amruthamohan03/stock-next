@@ -14,6 +14,7 @@ export default async function DocumentPage() {
       title: documentT.title,
       doc_type: documentT.doc_type,
       doc_date: documentT.doc_date,
+      status: documentT.status,
       created_at: documentT.created_at,
       created_by_name: usersT.full_name,
       role_name: roleMasterT.role_name,

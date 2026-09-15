@@ -2,6 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/ui/toast";
+import { useConfirm } from "@/components/ui/confirm";
+import { apiDelete } from "@/lib/api-client";
 import { Eye, Pencil, Trash2 } from "lucide-react";
 import DataTable, { type Column } from "@/components/data-table";
 import { TableAction, TableActions } from "@/components/ui/table-action";
@@ -32,17 +35,22 @@ const typeColor: Record<string, string> = {
 
 export default function StockTable({ rows }: { rows: StockRow[] }) {
   const router = useRouter();
+  const toast = useToast();
+  const confirm = useConfirm();
   const [deleting, setDeleting] = useState<number | null>(null);
 
   const remove = async (row: StockRow) => {
-    if (!confirm(`Delete this ${row.transaction_type} transaction? Balances will be recalculated.`))
-      return;
+    const ok = await confirm({
+      title: `Delete this ${row.transaction_type} transaction?`,
+      description: "Balances will be recalculated.",
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!ok) return;
     setDeleting(row.id);
-    const res = await fetch(`/api/stock?id=${row.id}`, { method: "DELETE" });
-    const json = await res.json();
+    const result = await apiDelete(`/api/stock?id=${row.id}`);
     setDeleting(null);
-    if (json.success) router.refresh();
-    else alert(json.message ?? "Delete failed");
+    if (toast.fromResult(result, { success: "Transaction deleted" })) router.refresh();
   };
 
   const columns: Column<StockRow>[] = useMemo(
