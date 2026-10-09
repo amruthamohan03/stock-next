@@ -652,6 +652,143 @@ export const documentRemarkT = pgTable("document_remark_t", {
   display: varchar({ length: 1 }).default("Y"),
 });
 
+/* ------------------------------------------------------- committees & events */
+// Institution committees (arts, sports, anti-ragging …) and the events they run.
+// Modelled on the college's own paperwork: an appointment order names the
+// committee's advisers; the committee runs a festival; the festival has items
+// split on-stage/off-stage; each item has a duty list (coordinators + judges),
+// a participant register (chest numbers), and a judged score card.
+// New to the Next port — no MySQL source tables.
+
+export const committeeT = pgTable("committee_t", {
+  id: pk(),
+  name: varchar({ length: 150 }).notNull(), // "College Arts Committee"
+  committee_type: varchar({ length: 30 }).default("ARTS"),
+  academic_year: varchar({ length: 20 }), // "2025-26"
+  description: text(),
+  // The appointment order (ഉത്തരവ്) that constituted the committee.
+  order_no: varchar({ length: 100 }),
+  order_date: date(),
+  created_by: integer(),
+  updated_by: integer(),
+  created_at: createdAt(),
+  updated_at: updatedAt(),
+  display: varchar({ length: 1 }).default("Y"),
+});
+
+// Members named in the appointment order. `staff_id` links to staff_t when the
+// member is on the staff register; `member_name` is always stored so the order
+// still reads correctly if the staff row is later edited.
+export const committeeMemberT = pgTable("committee_member_t", {
+  id: pk(),
+  committee_id: integer().notNull(),
+  staff_id: integer(),
+  member_name: varchar({ length: 150 }).notNull(),
+  designation: varchar({ length: 150 }),
+  // ADVISER | CHAIRMAN | SECRETARY | CONVENOR | MEMBER | STUDENT
+  member_role: varchar({ length: 30 }).default("MEMBER"),
+  sort_order: integer().default(0),
+  display: varchar({ length: 1 }).default("Y"),
+  created_at: createdAt(),
+});
+
+// A festival / event run by a committee, e.g. "MASTHI 2K26".
+export const eventT = pgTable("event_t", {
+  id: pk(),
+  committee_id: integer(),
+  name: varchar({ length: 150 }).notNull(), // "MASTHI 2K26"
+  subtitle: varchar({ length: 200 }), // "Arts Festival 2026"
+  academic_year: varchar({ length: 20 }),
+  start_date: date(),
+  end_date: date(),
+  venue: varchar({ length: 255 }),
+  // Printed under the signature block on every sheet.
+  adviser_name: varchar({ length: 150 }),
+  principal_name: varchar({ length: 150 }),
+  // OPEN while scores are being entered; FINALISED locks them and fixes places.
+  status: varchar({ length: 20 }).default("OPEN"),
+  created_by: integer(),
+  updated_by: integer(),
+  created_at: createdAt(),
+  updated_at: updatedAt(),
+  display: varchar({ length: 1 }).default("Y"),
+});
+
+// One competition item within an event.
+export const eventItemT = pgTable("event_item_t", {
+  id: pk(),
+  event_id: integer().notNull(),
+  name: varchar({ length: 150 }).notNull(), // "Cartoon", "Light Music (Songs)"
+  category: varchar({ length: 20 }).default("ON_STAGE"), // ON_STAGE | OFF_STAGE
+  item_type: varchar({ length: 20 }).default("SINGLE"), // SINGLE | GROUP
+  stage: varchar({ length: 100 }), // "Stage 1 (CCF Lab)" — groups the duty list
+  venue: varchar({ length: 150 }),
+  scheduled_date: date(),
+  // Free text to match the printed duty list exactly ("9:30 am", "1PM -2PM").
+  scheduled_time: varchar({ length: 40 }),
+  topic: varchar({ length: 255 }), // "Topic: Future World"
+  sort_order: integer().default(0),
+  display: varchar({ length: 1 }).default("Y"),
+  created_at: createdAt(),
+});
+
+// Duty allocation — the coordinators and judges printed on the duty list.
+export const eventDutyT = pgTable("event_duty_t", {
+  id: pk(),
+  item_id: integer().notNull(),
+  staff_id: integer(),
+  person_name: varchar({ length: 150 }).notNull(),
+  duty_role: varchar({ length: 20 }).default("JUDGE"), // COORDINATOR | JUDGE
+  sort_order: integer().default(0),
+  display: varchar({ length: 1 }).default("Y"),
+  created_at: createdAt(),
+});
+
+// The participant register and score card for an item — one row per entrant.
+// Scores live here rather than in a child table because the printed score card
+// is exactly one row per chest number (Judge 1/2/3 → Average → Grade → Place).
+export const eventParticipantT = pgTable("event_participant_t", {
+  id: pk(),
+  item_id: integer().notNull(),
+  chest_no: varchar({ length: 20 }),
+  participant_name: varchar({ length: 150 }).notNull(),
+  class_name: varchar({ length: 50 }), // "S6 CT"
+  phone: varchar({ length: 20 }),
+  // Captured for the inter-poly register, which asks for the parent's details.
+  parent_name: varchar({ length: 150 }),
+  parent_phone: varchar({ length: 20 }),
+  judge1_score: numeric({ precision: 6, scale: 2 }),
+  judge2_score: numeric({ precision: 6, scale: 2 }),
+  judge3_score: numeric({ precision: 6, scale: 2 }),
+  average_score: numeric({ precision: 6, scale: 2 }),
+  grade: varchar({ length: 10 }), // A / B / C
+  place: integer(), // 1, 2, 3 — null when unplaced
+  remarks: varchar({ length: 255 }),
+  sort_order: integer().default(0),
+  display: varchar({ length: 1 }).default("Y"),
+  created_at: createdAt(),
+});
+
+// Files attached to a committee or an event — appointment orders, meeting
+// minutes, inter-poly paperwork and event photos all live here, so there is one
+// upload route and one UI panel instead of a bespoke uploader per feature.
+// Stored outside /public and streamed through the API, like document attachments.
+export const attachmentT = pgTable("attachment_t", {
+  id: pk(),
+  owner_type: varchar({ length: 20 }).notNull(), // COMMITTEE | EVENT
+  owner_id: integer().notNull(),
+  // ORDER | MINUTES | PHOTO | INTERPOLY | REPORT | OTHER
+  category: varchar({ length: 30 }).default("OTHER"),
+  title: varchar({ length: 255 }),
+  file_path: varchar({ length: 255 }).notNull(), // stored filename
+  file_name: varchar({ length: 255 }), // original filename
+  file_type: varchar({ length: 100 }), // sniffed MIME type
+  file_size: integer(), // bytes
+  uploaded_by: integer(),
+  created_at: createdAt(),
+  display: varchar({ length: 1 }).default("Y"),
+});
+
 /* ------------------------------------------------------------------ stock */
 
 export const stockbookTypeT = pgTable("stockbook_type_t", {

@@ -19,6 +19,8 @@ import {
   BookOpen,
   Folder,
   MessageSquare,
+  CalendarDays,
+  Award,
   type LucideIcon,
 } from "lucide-react";
 import type { MenuNode } from "@/lib/rbac";
@@ -58,6 +60,13 @@ function iconFor(node: MenuNode): LucideIcon {
     message: MessageSquare,
     mail: MessageSquare,
     "message-circle": MessageSquare,
+    calendar: CalendarDays,
+    "calendar-event": CalendarDays,
+    "calendar-time": CalendarDays,
+    "users-group": Users,
+    confetti: Award,
+    award: Award,
+    trophy: Award,
   };
   if (byClass[key]) return byClass[key];
 
@@ -70,6 +79,8 @@ function iconFor(node: MenuNode): LucideIcon {
   if (/provider|supplier|vendor/.test(text)) return Truck;
   if (/setting|config/.test(text)) return Settings;
   if (/message|mail|whatsapp|send/.test(text)) return MessageSquare;
+  if (/timetable|schedule|calendar|event|festival/.test(text)) return CalendarDays;
+  if (/committee|arts|certificate|award/.test(text)) return Award;
   return Folder;
 }
 

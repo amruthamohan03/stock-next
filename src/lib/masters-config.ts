@@ -15,6 +15,7 @@ import {
   roleMasterT,
   usersT,
   dashboardCardMasterT,
+  committeeT,
 } from "@/db/schema";
 
 export type MasterConfig = {
@@ -40,6 +41,19 @@ export type MasterConfig = {
  * The client field descriptors live alongside each page.
  */
 export const MASTERS: Record<string, MasterConfig> = {
+  // Institution committees — the parent record an event hangs off.
+  committee: {
+    table: committeeT,
+    writable: [
+      "name",
+      "committee_type",
+      "academic_year",
+      "description",
+      "order_no",
+      "order_date",
+      "display",
+    ],
+  },
   make: {
     table: makeT,
     writable: ["make_name", "display"],

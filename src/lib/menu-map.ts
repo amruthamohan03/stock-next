@@ -33,6 +33,9 @@ const DIRECT: Record<string, string> = {
   kfcform21: "/report/kfc-form-21",
   "report/kfc-form-21": "/report/kfc-form-21",
   message: "/message",
+  committee: "/committee",
+  event: "/event",
+  arts: "/event",
 };
 
 /** Routes that are actually implemented in this port. */
@@ -65,6 +68,8 @@ export const IMPLEMENTED = new Set<string>([
   "/dashboard-card",
   "/role-menu-mapping",
   "/role-dashboard-card-mapping",
+  "/committee",
+  "/event",
 ]);
 
 export function toRoute(url: string | null): string {
