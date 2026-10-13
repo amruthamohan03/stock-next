@@ -161,7 +161,7 @@ export default function EventList({
       }
       card={(r) => <EventCard row={r} />}
       actions={actions}
-      facet={{ label: "Academic year", value: (r) => r.academic_year }}
+      facets={[{ label: "Academic year", value: (r) => r.academic_year }]}
       emptyState="No events yet — create the first one."
       table={<DataTable title="Events" columns={columns} rows={rows} />}
     />

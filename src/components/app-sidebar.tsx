@@ -24,6 +24,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { MenuNode } from "@/lib/rbac";
+import { DEFAULT_SETTINGS, type AppSettings } from "@/lib/app-settings";
 import { toRoute, IMPLEMENTED } from "@/lib/menu-map";
 import { cn } from "@/lib/utils";
 
@@ -84,7 +85,13 @@ function iconFor(node: MenuNode): LucideIcon {
   return Folder;
 }
 
-export default function AppSidebar({ menu }: { menu: MenuNode[] }) {
+export default function AppSidebar({
+  menu,
+  settings = DEFAULT_SETTINGS,
+}: {
+  menu: MenuNode[];
+  settings?: AppSettings;
+}) {
   const pathname = usePathname();
   // Accordion: exactly one main menu is expanded at a time.
   const routeGroupId =
@@ -99,14 +106,37 @@ export default function AppSidebar({ menu }: { menu: MenuNode[] }) {
   }, [routeGroupId]);
 
   return (
-    <aside className="hidden w-64 shrink-0 flex-col border-r border-line bg-card md:flex">
+    <aside
+      className="hidden w-64 shrink-0 flex-col border-r border-line bg-card md:flex"
+      // Blank settings leave these undefined, so the theme's own colours win.
+      style={{
+        background: "var(--sidebar-bg, var(--card))",
+        color: "var(--sidebar-text, var(--fg))",
+      }}
+    >
       <div className="flex h-14 items-center gap-2.5 border-b border-line px-5">
-        <div className="bg-brand-grad flex h-9 w-9 items-center justify-center rounded-xl text-white shadow-sm">
-          <Boxes className="h-5 w-5" />
+        <div
+          className={cn(
+            "flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl shadow-sm",
+            settings.logo_id ? "bg-elevated" : "bg-brand-grad text-white"
+          )}
+        >
+          {settings.logo_id ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={`/api/attachment?id=${settings.logo_id}`}
+              alt=""
+              className="h-full w-full object-contain"
+            />
+          ) : (
+            <Boxes className="h-5 w-5" />
+          )}
         </div>
-        <div className="leading-tight">
-          <div className="text-sm font-semibold text-fg">Stock</div>
-          <div className="text-[11px] text-faint">Inventory System</div>
+        <div className="min-w-0 leading-tight">
+          <div className="truncate text-sm font-semibold">{settings.project_name}</div>
+          {settings.tagline && (
+            <div className="truncate text-[11px] opacity-60">{settings.tagline}</div>
+          )}
         </div>
       </div>
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
@@ -119,9 +149,6 @@ export default function AppSidebar({ menu }: { menu: MenuNode[] }) {
           />
         ))}
       </nav>
-      <div className="border-t border-line px-4 py-3 text-[11px] text-faint">
-        Next.js + PostgreSQL
-      </div>
     </aside>
   );
 }

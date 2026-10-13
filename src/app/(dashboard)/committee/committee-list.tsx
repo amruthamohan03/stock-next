@@ -162,7 +162,7 @@ export default function CommitteeList({
       }
       card={(r) => <CommitteeCard row={r} />}
       actions={actions}
-      facet={{ label: "Academic year", value: (r) => r.academic_year }}
+      facets={[{ label: "Academic year", value: (r) => r.academic_year }]}
       emptyState="No committees yet — create the first one."
       table={<DataTable title="Committees" columns={columns} rows={rows} />}
     />

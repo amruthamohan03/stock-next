@@ -789,6 +789,88 @@ export const attachmentT = pgTable("attachment_t", {
   display: varchar({ length: 1 }).default("Y"),
 });
 
+/* ------------------------------------------------------- study materials */
+// Teaching material published against a subject — lab manuals, notes, previous
+// question papers and so on. The files themselves live in attachment_t with
+// owner_type 'MATERIAL', so this row carries only the description of what the
+// material is. New to the Next port.
+export const studyMaterialT = pgTable("study_material_t", {
+  id: pk(),
+  title: varchar({ length: 255 }).notNull(),
+  // LAB_MANUAL | NOTES | QUESTION_PAPER | SYLLABUS | ASSIGNMENT | REFERENCE | OTHER
+  material_type: varchar({ length: 30 }).default("NOTES"),
+  subject_id: integer(),
+  department_id: integer(),
+  semester: varchar({ length: 20 }), // "S3" — copied from the subject, editable
+  scheme: varchar({ length: 40 }), // e.g. "Revision 2021"
+  academic_year: varchar({ length: 20 }),
+  exam_session: varchar({ length: 40 }), // "April 2025" — for question papers
+  module_no: varchar({ length: 20 }), // "Module 3" — for notes
+  description: text(),
+  uploaded_by: integer(), // staff_t — who prepared it
+  created_by: integer(),
+  updated_by: integer(),
+  created_at: createdAt(),
+  updated_at: updatedAt(),
+  display: varchar({ length: 1 }).default("Y"),
+});
+
+/* ------------------------------------------------- faculty development */
+// Faculty Development Programmes attended by staff — the register the college
+// keeps for accreditation. Certificates and schedules are attached through
+// attachment_t with owner_type 'FDP'. New to the Next port.
+export const fdpT = pgTable("fdp_t", {
+  id: pk(),
+  title: varchar({ length: 255 }).notNull(), // "Foundational IT Skills & Generative AI"
+  staff_id: integer(), // the attendee, from staff_t
+  // Stored alongside staff_id so the register still reads correctly if the
+  // staff row is later edited, and so an outside attendee can be recorded.
+  faculty_name: varchar({ length: 150 }),
+  organizer: varchar({ length: 255 }), // "SITTTR, Kalamassery"
+  collaborator: varchar({ length: 255 }), // "in association with …"
+  mode: varchar({ length: 20 }).default("ONLINE"), // ONLINE | OFFLINE | HYBRID
+  venue: varchar({ length: 255 }),
+  start_date: date(),
+  end_date: date(),
+  academic_year: varchar({ length: 20 }),
+  subject_id: integer(),
+  department_id: integer(),
+  topics: text(), // topics covered
+  remarks: text(),
+  created_by: integer(),
+  updated_by: integer(),
+  created_at: createdAt(),
+  updated_at: updatedAt(),
+  display: varchar({ length: 1 }).default("Y"),
+});
+
+/* ----------------------------------------------------- application settings */
+// Branding and palette shown across the app. Exactly one row (id = 1) — the
+// loader creates it on first read, so the app works before anyone visits the
+// settings page. Logo and favicon are attachment_t rows (owner_type SETTINGS).
+export const applicationSettingsMasterT = pgTable("application_settings_master_t", {
+  id: pk(),
+  project_name: varchar({ length: 100 }).notNull().default("Stock"),
+  tab_title: varchar({ length: 100 }).notNull().default("Stock Management"),
+  tagline: varchar({ length: 150 }).default("Inventory System"),
+  // "{year}" is replaced with the current year when rendered.
+  footer_text: varchar({ length: 255 }).default(
+    "© {year} GPTCN Admin · All rights reserved."
+  ),
+  footer_credit: varchar({ length: 255 }).default(
+    "Designed by Department of Computer Engineering"
+  ),
+  // Printed on generated sheets (duty lists, certificates) — one line each.
+  letterhead: text(),
+  accent_color: varchar({ length: 20 }).default("#818cf8"),
+  accent_fg_color: varchar({ length: 20 }).default("#c7d2fe"),
+  sidebar_bg: varchar({ length: 20 }),
+  sidebar_text: varchar({ length: 20 }),
+  updated_by: integer(),
+  created_at: createdAt(),
+  updated_at: updatedAt(),
+});
+
 /* ------------------------------------------------------------------ stock */
 
 export const stockbookTypeT = pgTable("stockbook_type_t", {

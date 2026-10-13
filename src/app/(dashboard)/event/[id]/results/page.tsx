@@ -10,6 +10,13 @@ import PrintButton from "../../../report/_components/print-button";
 import { isEventLocked, ordinal } from "@/lib/event-status";
 import EventSheetStyle from "../../event-sheet-style";
 
+/** Tint for a grade chip — opacity forms so they read on dark and light. */
+const GRADE_TONE: Record<string, string> = {
+  A: "bg-emerald-500/15 text-emerald-500 ring-emerald-500/25",
+  B: "bg-sky-500/15 text-sky-500 ring-sky-500/25",
+  C: "bg-amber-500/15 text-amber-500 ring-amber-500/25",
+};
+
 /**
  * Results and certificates.
  *
@@ -18,6 +25,11 @@ import EventSheetStyle from "../../event-sheet-style";
  * come from the stored `place`, which is computed when the event is finalised —
  * so an unfinalised event prints nothing, rather than certificates that might
  * change.
+ *
+ * Some events are graded rather than placed: the inter-poly festival awards
+ * A/B/C and issues its own certificates, so there is no place to compute. Those
+ * grades are listed here too, otherwise the results of such an event would be
+ * reachable only item by item.
  */
 export default async function ResultsPage({
   params,
@@ -64,6 +76,8 @@ export default async function ResultsPage({
 
   const locked = isEventLocked(ev.status);
   const placed = winners.filter((w) => w.place !== null);
+  // Graded but unplaced — an externally judged event, or an item still open.
+  const graded = winners.filter((w) => w.place === null && w.grade);
 
   return (
     <div className="space-y-4">
@@ -71,7 +85,11 @@ export default async function ResultsPage({
         <div>
           <h1 className="text-base font-semibold text-fg">Results — {ev.name}</h1>
           <p className="text-sm text-muted">
-            {placed.length} placed {placed.length === 1 ? "entrant" : "entrants"}
+            {placed.length > 0
+              ? `${placed.length} placed ${placed.length === 1 ? "entrant" : "entrants"}`
+              : graded.length > 0
+                ? `${graded.length} graded ${graded.length === 1 ? "entrant" : "entrants"}`
+                : "No results yet"}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -98,11 +116,46 @@ export default async function ResultsPage({
 
       <Card className="no-print">
         <CardHeader>
-          <CardTitle>Winners</CardTitle>
+          <CardTitle>{placed.length > 0 ? "Winners" : "Grades awarded"}</CardTitle>
         </CardHeader>
         <CardContent>
           {placed.length === 0 ? (
-            <p className="text-sm text-muted">No placings yet.</p>
+            graded.length === 0 ? (
+              <p className="text-sm text-muted">No placings or grades yet.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-line text-left text-xs text-muted">
+                      <th className="px-2 py-2">Item</th>
+                      <th className="px-2 py-2">Name</th>
+                      <th className="px-2 py-2">Class</th>
+                      <th className="px-2 py-2">Chest / Reg no</th>
+                      <th className="px-2 py-2 text-center">Grade</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {graded.map((w) => (
+                      <tr key={w.id} className="border-b border-line/60">
+                        <td className="px-2 py-2 text-muted">{w.item_name}</td>
+                        <td className="px-2 py-2 font-medium text-fg">{w.name}</td>
+                        <td className="px-2 py-2 text-muted">{w.class_name || "—"}</td>
+                        <td className="px-2 py-2 tabular-nums text-muted">{w.chest_no || "—"}</td>
+                        <td className="px-2 py-2 text-center">
+                          <span
+                            className={`rounded-md px-1.5 py-0.5 text-xs font-medium ring-1 ${
+                              GRADE_TONE[w.grade ?? ""] ?? "bg-elevated text-muted ring-line"
+                            }`}
+                          >
+                            {w.grade}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

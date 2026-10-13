@@ -4,7 +4,14 @@ import path from "node:path";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { getSession } from "@/lib/session";
-import { attachmentT, committeeT, eventT } from "@/db/schema";
+import {
+  applicationSettingsMasterT,
+  attachmentT,
+  committeeT,
+  eventT,
+  fdpT,
+  studyMaterialT,
+} from "@/db/schema";
 import { EXT_FOR, MAX_UPLOAD_BYTES, safeFilename, sniffType } from "@/lib/upload";
 import { isOwnerType, toCategory, type OwnerType } from "@/lib/attachment";
 
@@ -21,21 +28,42 @@ const UPLOAD_DIR = path.join(process.cwd(), "uploads", "attachment");
 
 /** The owning row must exist and not be soft-deleted. */
 async function ownerExists(ownerType: OwnerType, ownerId: number) {
-  if (ownerType === "COMMITTEE") {
+  // Application settings is a singleton with no soft delete, so it has no
+  // `display` column and is checked on its own.
+  if (ownerType === "SETTINGS") {
     const [row] = await db
-      .select({ id: committeeT.id })
-      .from(committeeT)
-      .where(and(eq(committeeT.id, ownerId), eq(committeeT.display, "Y")))
+      .select({ id: applicationSettingsMasterT.id })
+      .from(applicationSettingsMasterT)
+      .where(eq(applicationSettingsMasterT.id, ownerId))
       .limit(1);
     return !!row;
   }
+
+  // The rest share the same shape of check; a lookup keeps this honest when
+  // another owner type is added.
+  const TABLES = {
+    COMMITTEE: committeeT,
+    EVENT: eventT,
+    MATERIAL: studyMaterialT,
+    FDP: fdpT,
+  } as const;
+  const table = TABLES[ownerType];
   const [row] = await db
-    .select({ id: eventT.id })
-    .from(eventT)
-    .where(and(eq(eventT.id, ownerId), eq(eventT.display, "Y")))
+    .select({ id: table.id })
+    .from(table)
+    .where(and(eq(table.id, ownerId), eq(table.display, "Y")))
     .limit(1);
   return !!row;
 }
+
+/** Human label for the "not found" message. */
+const OWNER_LABEL: Record<OwnerType, string> = {
+  COMMITTEE: "Committee",
+  EVENT: "Event",
+  MATERIAL: "Study material",
+  FDP: "FDP record",
+  SETTINGS: "Application settings",
+};
 
 async function removeFile(name: string | null | undefined) {
   if (!name) return;
@@ -70,7 +98,7 @@ export async function POST(req: NextRequest) {
 
   if (!(await ownerExists(ownerType, ownerId)))
     return NextResponse.json(
-      { success: false, message: `${ownerType === "EVENT" ? "Event" : "Committee"} not found` },
+      { success: false, message: `${OWNER_LABEL[ownerType]} not found` },
       { status: 404 }
     );
 

@@ -36,6 +36,11 @@ const DIRECT: Record<string, string> = {
   committee: "/committee",
   event: "/event",
   arts: "/event",
+  "study-material": "/study-material",
+  studymaterial: "/study-material",
+  fdp: "/fdp",
+  settings: "/settings",
+  "application-settings": "/settings",
 };
 
 /** Routes that are actually implemented in this port. */
@@ -70,6 +75,9 @@ export const IMPLEMENTED = new Set<string>([
   "/role-dashboard-card-mapping",
   "/committee",
   "/event",
+  "/study-material",
+  "/fdp",
+  "/settings",
 ]);
 
 export function toRoute(url: string | null): string {

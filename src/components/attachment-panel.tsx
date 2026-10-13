@@ -227,15 +227,16 @@ export default function AttachmentPanel({
                     </a>
                     <div className="mt-0.5 flex min-w-0 items-center gap-1.5 overflow-hidden text-[11px] text-muted">
                       <span
-                        className={`whitespace-nowrap rounded-full px-1.5 py-0.5 ring-1 ring-inset ${CATEGORY_TINT[toCategory(f.category)]}`}
+                        className={`min-w-0 truncate rounded-full px-1.5 py-0.5 ring-1 ring-inset ${CATEGORY_TINT[toCategory(f.category)]}`}
+                        title={CATEGORY_LABEL[toCategory(f.category)]}
                       >
                         {CATEGORY_LABEL[toCategory(f.category)]}
                       </span>
                       {f.file_size ? (
-                        <span className="whitespace-nowrap">{formatBytes(f.file_size)}</span>
+                        <span className="shrink-0 whitespace-nowrap">{formatBytes(f.file_size)}</span>
                       ) : null}
                       {f.created_at ? (
-                        <span className="whitespace-nowrap">{formatDate(f.created_at)}</span>
+                        <span className="shrink-0 whitespace-nowrap">{formatDate(f.created_at)}</span>
                       ) : null}
                     </div>
                   </div>

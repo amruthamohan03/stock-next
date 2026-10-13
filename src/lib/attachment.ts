@@ -6,7 +6,7 @@
  * says which, and `category` says what kind of paperwork it is.
  */
 
-export const OWNER_TYPES = ["COMMITTEE", "EVENT"] as const;
+export const OWNER_TYPES = ["COMMITTEE", "EVENT", "MATERIAL", "FDP", "SETTINGS"] as const;
 export type OwnerType = (typeof OWNER_TYPES)[number];
 
 export function isOwnerType(value: unknown): value is OwnerType {
@@ -19,6 +19,12 @@ export const CATEGORIES = [
   "PHOTO",
   "INTERPOLY",
   "REPORT",
+  "MATERIAL",
+  "SOLUTION",
+  "CERTIFICATE",
+  "SCHEDULE",
+  "LOGO",
+  "FAVICON",
   "OTHER",
 ] as const;
 export type Category = (typeof CATEGORIES)[number];
@@ -29,6 +35,12 @@ export const CATEGORY_LABEL: Record<Category, string> = {
   PHOTO: "Photos",
   INTERPOLY: "Inter-Poly Documents",
   REPORT: "Reports",
+  MATERIAL: "Material",
+  SOLUTION: "Answer Key",
+  CERTIFICATE: "Certificate",
+  SCHEDULE: "Schedule",
+  LOGO: "Logo",
+  FAVICON: "Favicon",
   OTHER: "Other Files",
 };
 
@@ -39,6 +51,12 @@ export const CATEGORY_TINT: Record<Category, string> = {
   PHOTO: "bg-emerald-500/15 text-emerald-500 ring-emerald-500/25",
   INTERPOLY: "bg-amber-500/15 text-amber-500 ring-amber-500/25",
   REPORT: "bg-rose-500/15 text-rose-500 ring-rose-500/25",
+  MATERIAL: "bg-sky-500/15 text-sky-500 ring-sky-500/25",
+  SOLUTION: "bg-emerald-500/15 text-emerald-500 ring-emerald-500/25",
+  CERTIFICATE: "bg-amber-500/15 text-amber-500 ring-amber-500/25",
+  SCHEDULE: "bg-violet-500/15 text-violet-500 ring-violet-500/25",
+  LOGO: "bg-sky-500/15 text-sky-500 ring-sky-500/25",
+  FAVICON: "bg-cyan-500/15 text-cyan-500 ring-cyan-500/25",
   OTHER: "bg-slate-500/15 text-slate-500 ring-slate-500/25",
 };
 
@@ -59,6 +77,9 @@ export function categoryLabel(value: unknown): string {
 export const CATEGORIES_FOR: Record<OwnerType, Category[]> = {
   COMMITTEE: ["ORDER", "MINUTES", "REPORT", "OTHER"],
   EVENT: ["PHOTO", "INTERPOLY", "REPORT", "MINUTES", "OTHER"],
+  MATERIAL: ["MATERIAL", "SOLUTION", "OTHER"],
+  FDP: ["CERTIFICATE", "SCHEDULE", "OTHER"],
+  SETTINGS: ["LOGO", "FAVICON"],
 };
 
 export const categoryOptions = (owner: OwnerType) =>
