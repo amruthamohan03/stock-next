@@ -15,6 +15,9 @@ import {
   roleMasterT,
   usersT,
   dashboardCardMasterT,
+  committeeT,
+  studyMaterialT,
+  fdpT,
 } from "@/db/schema";
 
 export type MasterConfig = {
@@ -40,6 +43,62 @@ export type MasterConfig = {
  * The client field descriptors live alongside each page.
  */
 export const MASTERS: Record<string, MasterConfig> = {
+  // Faculty Development Programmes attended by staff. Certificates and
+  // schedules are attached separately via /api/attachment (owner_type FDP).
+  fdp: {
+    table: fdpT,
+    writable: [
+      "title",
+      "staff_id",
+      "faculty_name",
+      "organizer",
+      "collaborator",
+      "mode",
+      "venue",
+      "start_date",
+      "end_date",
+      "academic_year",
+      "subject_id",
+      "department_id",
+      "topics",
+      "remarks",
+      "display",
+    ],
+    numeric: ["staff_id", "subject_id", "department_id"],
+  },
+  // Study materials — lab manuals, notes, question papers. Files are attached
+  // separately through /api/attachment (owner_type MATERIAL).
+  "study-material": {
+    table: studyMaterialT,
+    writable: [
+      "title",
+      "material_type",
+      "subject_id",
+      "department_id",
+      "semester",
+      "scheme",
+      "academic_year",
+      "exam_session",
+      "module_no",
+      "description",
+      "uploaded_by",
+      "display",
+    ],
+    numeric: ["subject_id", "department_id", "uploaded_by"],
+  },
+  // Institution committees — the parent record an event hangs off.
+  committee: {
+    table: committeeT,
+    writable: [
+      "name",
+      "committee_type",
+      "academic_year",
+      "description",
+      "order_no",
+      "order_date",
+      "display",
+    ],
+  },
   make: {
     table: makeT,
     writable: ["make_name", "display"],

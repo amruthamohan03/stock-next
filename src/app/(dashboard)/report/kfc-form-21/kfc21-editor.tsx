@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/ui/toast";
+import { apiRequest } from "@/lib/api-client";
 import { Plus, Printer, Trash2, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -68,6 +70,7 @@ export default function KfcForm21Editor({
   initial?: Kfc21Initial;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const editing = !!initial;
   const keyRef = useState(() => ({ n: initial?.items.length ?? 1 }))[0];
 
@@ -120,10 +123,9 @@ export default function KfcForm21Editor({
       return;
     }
     setSaving(true);
-    const res = await fetch("/api/kfc-form-21", {
+    const result = await apiRequest("/api/kfc-form-21", {
       method: editing ? "PUT" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+      body: {
         id: initial?.id,
         title,
         form_date: date,
@@ -141,15 +143,18 @@ export default function KfcForm21Editor({
           cause_remarks: r.cause_remarks,
           authority_remarks: r.authority_remarks,
         })),
-      }),
+      },
     });
-    const json = await res.json();
     setSaving(false);
-    if (json.success) {
+    if (result.success) {
+      toast.success(result.message || `${editing ? "Updated" : "Saved"} K.F.C. Form 21`);
       router.push("/report/kfc-form-21");
       router.refresh();
     } else {
-      setMsg({ ok: false, text: json.message ?? "Save failed" });
+      // Keep the inline banner too: the editor is long, and the toast may
+      // scroll out of view before the user reaches the Save button again.
+      setMsg({ ok: false, text: result.message });
+      toast.error(result.message);
     }
   };
 
@@ -240,7 +245,7 @@ export default function KfcForm21Editor({
       </div>
 
       {/* Printable sheet */}
-      <div className="kfc-sheet rounded-lg border border-line bg-white p-4">
+      <div className="printable kfc-sheet rounded-lg border border-line bg-white p-4">
         <div className="mb-2 text-center">
           <div className="text-base font-bold tracking-wide text-slate-900">K.F.C FORM 21</div>
           <div className="text-[11px] italic text-slate-600">(See Chapter VI, Article 156, Note)</div>

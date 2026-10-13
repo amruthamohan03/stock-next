@@ -2,6 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/ui/toast";
+import { useConfirm } from "@/components/ui/confirm";
+import { apiDelete } from "@/lib/api-client";
 import { Eye, Pencil, Trash2 } from "lucide-react";
 import DataTable, { type Column } from "@/components/data-table";
 import { TableAction, TableActions } from "@/components/ui/table-action";
@@ -26,16 +29,22 @@ const inr = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2,
 
 export default function DaybookTable({ rows }: { rows: DaybookRow[] }) {
   const router = useRouter();
+  const toast = useToast();
+  const confirm = useConfirm();
   const [deleting, setDeleting] = useState<number | null>(null);
 
   const remove = async (row: DaybookRow) => {
-    if (!confirm(`Delete this Day Book entry? All receipt and issue lines will also be removed.`)) return;
+    const ok = await confirm({
+      title: `Delete this Day Book entry?`,
+      description: "All receipt and issue lines will also be removed.",
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!ok) return;
     setDeleting(row.id);
-    const res = await fetch(`/api/daybook?id=${row.id}`, { method: "DELETE" });
-    const json = await res.json();
+    const result = await apiDelete(`/api/daybook?id=${row.id}`);
     setDeleting(null);
-    if (json.success) router.refresh();
-    else alert(json.message ?? "Delete failed");
+    if (toast.fromResult(result, { success: "Day Book entry deleted" })) router.refresh();
   };
 
   const columns: Column<DaybookRow>[] = useMemo(

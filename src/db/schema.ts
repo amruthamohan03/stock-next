@@ -627,6 +627,9 @@ export const documentT = pgTable("document_t", {
   department: varchar({ length: 255 }),
   institution: varchar({ length: 255 }),
   signed_by: integer(), // signatory user (may differ from created_by)
+  // Workflow state: DRAFT -> VERIFIED -> SUBMITTED. SUBMITTED is the final,
+  // locked state — see src/lib/document-status.ts for the transition rules.
+  status: varchar({ length: 20 }).default("DRAFT"),
   attachment_path: varchar({ length: 255 }), // stored filename of the uploaded doc (image/pdf)
   attachment_name: varchar({ length: 255 }), // original filename
   attachment_type: varchar({ length: 100 }), // MIME type
@@ -635,6 +638,237 @@ export const documentT = pgTable("document_t", {
   created_at: createdAt(),
   updated_at: updatedAt(),
   display: varchar({ length: 1 }).default("Y"),
+});
+
+// Dated remarks against a document — an append-only trail, one row per remark,
+// soft-deleted like the masters.
+export const documentRemarkT = pgTable("document_remark_t", {
+  id: pk(),
+  document_id: integer().notNull(),
+  remark_date: date(),
+  remark: text().notNull(),
+  created_by: integer(),
+  created_at: createdAt(),
+  display: varchar({ length: 1 }).default("Y"),
+});
+
+/* ------------------------------------------------------- committees & events */
+// Institution committees (arts, sports, anti-ragging …) and the events they run.
+// Modelled on the college's own paperwork: an appointment order names the
+// committee's advisers; the committee runs a festival; the festival has items
+// split on-stage/off-stage; each item has a duty list (coordinators + judges),
+// a participant register (chest numbers), and a judged score card.
+// New to the Next port — no MySQL source tables.
+
+export const committeeT = pgTable("committee_t", {
+  id: pk(),
+  name: varchar({ length: 150 }).notNull(), // "College Arts Committee"
+  committee_type: varchar({ length: 30 }).default("ARTS"),
+  academic_year: varchar({ length: 20 }), // "2025-26"
+  description: text(),
+  // The appointment order (ഉത്തരവ്) that constituted the committee.
+  order_no: varchar({ length: 100 }),
+  order_date: date(),
+  created_by: integer(),
+  updated_by: integer(),
+  created_at: createdAt(),
+  updated_at: updatedAt(),
+  display: varchar({ length: 1 }).default("Y"),
+});
+
+// Members named in the appointment order. `staff_id` links to staff_t when the
+// member is on the staff register; `member_name` is always stored so the order
+// still reads correctly if the staff row is later edited.
+export const committeeMemberT = pgTable("committee_member_t", {
+  id: pk(),
+  committee_id: integer().notNull(),
+  staff_id: integer(),
+  member_name: varchar({ length: 150 }).notNull(),
+  designation: varchar({ length: 150 }),
+  // ADVISER | CHAIRMAN | SECRETARY | CONVENOR | MEMBER | STUDENT
+  member_role: varchar({ length: 30 }).default("MEMBER"),
+  sort_order: integer().default(0),
+  display: varchar({ length: 1 }).default("Y"),
+  created_at: createdAt(),
+});
+
+// A festival / event run by a committee, e.g. "MASTHI 2K26".
+export const eventT = pgTable("event_t", {
+  id: pk(),
+  committee_id: integer(),
+  name: varchar({ length: 150 }).notNull(), // "MASTHI 2K26"
+  subtitle: varchar({ length: 200 }), // "Arts Festival 2026"
+  academic_year: varchar({ length: 20 }),
+  start_date: date(),
+  end_date: date(),
+  venue: varchar({ length: 255 }),
+  // Printed under the signature block on every sheet.
+  adviser_name: varchar({ length: 150 }),
+  principal_name: varchar({ length: 150 }),
+  // OPEN while scores are being entered; FINALISED locks them and fixes places.
+  status: varchar({ length: 20 }).default("OPEN"),
+  created_by: integer(),
+  updated_by: integer(),
+  created_at: createdAt(),
+  updated_at: updatedAt(),
+  display: varchar({ length: 1 }).default("Y"),
+});
+
+// One competition item within an event.
+export const eventItemT = pgTable("event_item_t", {
+  id: pk(),
+  event_id: integer().notNull(),
+  name: varchar({ length: 150 }).notNull(), // "Cartoon", "Light Music (Songs)"
+  category: varchar({ length: 20 }).default("ON_STAGE"), // ON_STAGE | OFF_STAGE
+  item_type: varchar({ length: 20 }).default("SINGLE"), // SINGLE | GROUP
+  stage: varchar({ length: 100 }), // "Stage 1 (CCF Lab)" — groups the duty list
+  venue: varchar({ length: 150 }),
+  scheduled_date: date(),
+  // Free text to match the printed duty list exactly ("9:30 am", "1PM -2PM").
+  scheduled_time: varchar({ length: 40 }),
+  topic: varchar({ length: 255 }), // "Topic: Future World"
+  sort_order: integer().default(0),
+  display: varchar({ length: 1 }).default("Y"),
+  created_at: createdAt(),
+});
+
+// Duty allocation — the coordinators and judges printed on the duty list.
+export const eventDutyT = pgTable("event_duty_t", {
+  id: pk(),
+  item_id: integer().notNull(),
+  staff_id: integer(),
+  person_name: varchar({ length: 150 }).notNull(),
+  duty_role: varchar({ length: 20 }).default("JUDGE"), // COORDINATOR | JUDGE
+  sort_order: integer().default(0),
+  display: varchar({ length: 1 }).default("Y"),
+  created_at: createdAt(),
+});
+
+// The participant register and score card for an item — one row per entrant.
+// Scores live here rather than in a child table because the printed score card
+// is exactly one row per chest number (Judge 1/2/3 → Average → Grade → Place).
+export const eventParticipantT = pgTable("event_participant_t", {
+  id: pk(),
+  item_id: integer().notNull(),
+  chest_no: varchar({ length: 20 }),
+  participant_name: varchar({ length: 150 }).notNull(),
+  class_name: varchar({ length: 50 }), // "S6 CT"
+  phone: varchar({ length: 20 }),
+  // Captured for the inter-poly register, which asks for the parent's details.
+  parent_name: varchar({ length: 150 }),
+  parent_phone: varchar({ length: 20 }),
+  judge1_score: numeric({ precision: 6, scale: 2 }),
+  judge2_score: numeric({ precision: 6, scale: 2 }),
+  judge3_score: numeric({ precision: 6, scale: 2 }),
+  average_score: numeric({ precision: 6, scale: 2 }),
+  grade: varchar({ length: 10 }), // A / B / C
+  place: integer(), // 1, 2, 3 — null when unplaced
+  remarks: varchar({ length: 255 }),
+  sort_order: integer().default(0),
+  display: varchar({ length: 1 }).default("Y"),
+  created_at: createdAt(),
+});
+
+// Files attached to a committee or an event — appointment orders, meeting
+// minutes, inter-poly paperwork and event photos all live here, so there is one
+// upload route and one UI panel instead of a bespoke uploader per feature.
+// Stored outside /public and streamed through the API, like document attachments.
+export const attachmentT = pgTable("attachment_t", {
+  id: pk(),
+  owner_type: varchar({ length: 20 }).notNull(), // COMMITTEE | EVENT
+  owner_id: integer().notNull(),
+  // ORDER | MINUTES | PHOTO | INTERPOLY | REPORT | OTHER
+  category: varchar({ length: 30 }).default("OTHER"),
+  title: varchar({ length: 255 }),
+  file_path: varchar({ length: 255 }).notNull(), // stored filename
+  file_name: varchar({ length: 255 }), // original filename
+  file_type: varchar({ length: 100 }), // sniffed MIME type
+  file_size: integer(), // bytes
+  uploaded_by: integer(),
+  created_at: createdAt(),
+  display: varchar({ length: 1 }).default("Y"),
+});
+
+/* ------------------------------------------------------- study materials */
+// Teaching material published against a subject — lab manuals, notes, previous
+// question papers and so on. The files themselves live in attachment_t with
+// owner_type 'MATERIAL', so this row carries only the description of what the
+// material is. New to the Next port.
+export const studyMaterialT = pgTable("study_material_t", {
+  id: pk(),
+  title: varchar({ length: 255 }).notNull(),
+  // LAB_MANUAL | NOTES | QUESTION_PAPER | SYLLABUS | ASSIGNMENT | REFERENCE | OTHER
+  material_type: varchar({ length: 30 }).default("NOTES"),
+  subject_id: integer(),
+  department_id: integer(),
+  semester: varchar({ length: 20 }), // "S3" — copied from the subject, editable
+  scheme: varchar({ length: 40 }), // e.g. "Revision 2021"
+  academic_year: varchar({ length: 20 }),
+  exam_session: varchar({ length: 40 }), // "April 2025" — for question papers
+  module_no: varchar({ length: 20 }), // "Module 3" — for notes
+  description: text(),
+  uploaded_by: integer(), // staff_t — who prepared it
+  created_by: integer(),
+  updated_by: integer(),
+  created_at: createdAt(),
+  updated_at: updatedAt(),
+  display: varchar({ length: 1 }).default("Y"),
+});
+
+/* ------------------------------------------------- faculty development */
+// Faculty Development Programmes attended by staff — the register the college
+// keeps for accreditation. Certificates and schedules are attached through
+// attachment_t with owner_type 'FDP'. New to the Next port.
+export const fdpT = pgTable("fdp_t", {
+  id: pk(),
+  title: varchar({ length: 255 }).notNull(), // "Foundational IT Skills & Generative AI"
+  staff_id: integer(), // the attendee, from staff_t
+  // Stored alongside staff_id so the register still reads correctly if the
+  // staff row is later edited, and so an outside attendee can be recorded.
+  faculty_name: varchar({ length: 150 }),
+  organizer: varchar({ length: 255 }), // "SITTTR, Kalamassery"
+  collaborator: varchar({ length: 255 }), // "in association with …"
+  mode: varchar({ length: 20 }).default("ONLINE"), // ONLINE | OFFLINE | HYBRID
+  venue: varchar({ length: 255 }),
+  start_date: date(),
+  end_date: date(),
+  academic_year: varchar({ length: 20 }),
+  subject_id: integer(),
+  department_id: integer(),
+  topics: text(), // topics covered
+  remarks: text(),
+  created_by: integer(),
+  updated_by: integer(),
+  created_at: createdAt(),
+  updated_at: updatedAt(),
+  display: varchar({ length: 1 }).default("Y"),
+});
+
+/* ----------------------------------------------------- application settings */
+// Branding and palette shown across the app. Exactly one row (id = 1) — the
+// loader creates it on first read, so the app works before anyone visits the
+// settings page. Logo and favicon are attachment_t rows (owner_type SETTINGS).
+export const applicationSettingsMasterT = pgTable("application_settings_master_t", {
+  id: pk(),
+  project_name: varchar({ length: 100 }).notNull().default("Stock"),
+  tab_title: varchar({ length: 100 }).notNull().default("Stock Management"),
+  tagline: varchar({ length: 150 }).default("Inventory System"),
+  // "{year}" is replaced with the current year when rendered.
+  footer_text: varchar({ length: 255 }).default(
+    "© {year} GPTCN Admin · All rights reserved."
+  ),
+  footer_credit: varchar({ length: 255 }).default(
+    "Designed by Department of Computer Engineering"
+  ),
+  // Printed on generated sheets (duty lists, certificates) — one line each.
+  letterhead: text(),
+  accent_color: varchar({ length: 20 }).default("#818cf8"),
+  accent_fg_color: varchar({ length: 20 }).default("#c7d2fe"),
+  sidebar_bg: varchar({ length: 20 }),
+  sidebar_text: varchar({ length: 20 }),
+  updated_by: integer(),
+  created_at: createdAt(),
+  updated_at: updatedAt(),
 });
 
 /* ------------------------------------------------------------------ stock */

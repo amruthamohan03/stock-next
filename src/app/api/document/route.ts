@@ -3,6 +3,13 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { getSession } from "@/lib/session";
 import { documentT } from "@/db/schema";
+import {
+  canEdit,
+  canTransition,
+  isLocked,
+  toDocStatus,
+  transitionError,
+} from "@/lib/document-status";
 
 // Composed print documents — save / update / soft-delete.
 type Body = {
@@ -40,6 +47,32 @@ function values(body: Body) {
   };
 }
 
+/**
+ * Load a document's workflow state and decide whether this role may change it.
+ * Returns an error response to return as-is, or the row when the edit is allowed.
+ */
+async function assertEditable(id: number, roleId: number) {
+  const [row] = await db
+    .select({ status: documentT.status })
+    .from(documentT)
+    .where(eq(documentT.id, id));
+  if (!row) {
+    return { error: NextResponse.json({ success: false, message: "Document not found" }, { status: 404 }) };
+  }
+  if (!canEdit(row.status, roleId)) {
+    return {
+      error: NextResponse.json(
+        {
+          success: false,
+          message: "This document is submitted and locked. Only a Super Admin can change it.",
+        },
+        { status: 403 }
+      ),
+    };
+  }
+  return { status: toDocStatus(row.status) };
+}
+
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
@@ -69,6 +102,9 @@ export async function PUT(req: NextRequest) {
   if (!id) return NextResponse.json({ success: false, message: "Document id is required" }, { status: 400 });
   if (!v.title) return NextResponse.json({ success: false, message: "Title is required" }, { status: 400 });
 
+  const guard = await assertEditable(id, session.roleId);
+  if (guard.error) return guard.error;
+
   try {
     await db
       .update(documentT)
@@ -87,9 +123,50 @@ export async function DELETE(req: NextRequest) {
   const id = Number(new URL(req.url).searchParams.get("id"));
   if (!id) return NextResponse.json({ success: false, message: "Document id is required" }, { status: 400 });
 
+  const guard = await assertEditable(id, session.roleId);
+  if (guard.error) return guard.error;
+
   try {
     await db.update(documentT).set({ display: "N" }).where(eq(documentT.id, id));
     return NextResponse.json({ success: true, message: "Document deleted" });
+  } catch (e) {
+    return NextResponse.json({ success: false, message: (e as Error).message }, { status: 500 });
+  }
+}
+
+/** Advance (or, for a Super Admin, reverse) the workflow status. */
+export async function PATCH(req: NextRequest) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+
+  const body = (await req.json()) as { id?: number; status?: string };
+  const id = Number(body.id);
+  if (!id) return NextResponse.json({ success: false, message: "Document id is required" }, { status: 400 });
+
+  const [row] = await db
+    .select({ status: documentT.status })
+    .from(documentT)
+    .where(eq(documentT.id, id));
+  if (!row) return NextResponse.json({ success: false, message: "Document not found" }, { status: 404 });
+
+  const to = toDocStatus(body.status);
+  if (!canTransition(row.status, to, session.roleId)) {
+    return NextResponse.json(
+      { success: false, message: transitionError(row.status, to, session.roleId) },
+      { status: 403 }
+    );
+  }
+
+  try {
+    await db
+      .update(documentT)
+      .set({ status: to, updated_by: session.id, updated_at: new Date() })
+      .where(eq(documentT.id, id));
+    return NextResponse.json({
+      success: true,
+      message: isLocked(to) ? "Document submitted and locked" : `Document marked ${to.toLowerCase()}`,
+      status: to,
+    });
   } catch (e) {
     return NextResponse.json({ success: false, message: (e as Error).message }, { status: 500 });
   }

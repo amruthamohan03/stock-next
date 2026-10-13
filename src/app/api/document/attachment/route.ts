@@ -5,6 +5,29 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { getSession } from "@/lib/session";
 import { documentT } from "@/db/schema";
+import { canEdit } from "@/lib/document-status";
+
+/**
+ * The attachment is part of the document, so it freezes with it: refuse the
+ * write when the document is submitted and locked.
+ */
+async function lockedResponse(id: number, roleId: number) {
+  const [doc] = await db
+    .select({ status: documentT.status })
+    .from(documentT)
+    .where(eq(documentT.id, id))
+    .limit(1);
+  if (doc && !canEdit(doc.status, roleId)) {
+    return NextResponse.json(
+      {
+        success: false,
+        message: "This document is submitted and locked. Only a Super Admin can change it.",
+      },
+      { status: 403 }
+    );
+  }
+  return null;
+}
 import { EXT_FOR, MAX_UPLOAD_BYTES, safeFilename, sniffType } from "@/lib/upload";
 
 // Attachments are stored privately (outside /public) and streamed via GET,
@@ -56,6 +79,9 @@ export async function POST(req: NextRequest) {
     .where(and(eq(documentT.id, id), eq(documentT.display, "Y")))
     .limit(1);
   if (!doc) return NextResponse.json({ success: false, message: "Document not found" }, { status: 404 });
+
+  const locked = await lockedResponse(id, session.roleId);
+  if (locked) return locked;
 
   const bytes = Buffer.from(await file.arrayBuffer());
   if (bytes.length > MAX_UPLOAD_BYTES)
@@ -121,6 +147,9 @@ export async function DELETE(req: NextRequest) {
   const id = Number(new URL(req.url).searchParams.get("id"));
   if (!Number.isInteger(id) || id <= 0)
     return NextResponse.json({ success: false, message: "A valid document id is required" }, { status: 400 });
+
+  const locked = await lockedResponse(id, session.roleId);
+  if (locked) return locked;
 
   try {
     const att = await attachmentOf(id);

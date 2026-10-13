@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/ui/toast";
+import { apiRequest } from "@/lib/api-client";
 import { Plus, Printer, Trash2, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -62,6 +64,42 @@ const todayIso = () => {
 const cellInput =
   "w-full bg-transparent px-1 py-1 text-xs text-slate-800 outline-none focus:bg-brand-50/60";
 
+/**
+ * One grid cell: an editable input on screen, flat text when printing.
+ * An `<input>` prints at its full box height, which is what pushed every row
+ * onto a page of its own — the print twin collapses the row to its content.
+ */
+function Cell({
+  value,
+  onChange,
+  align = "left",
+  inputMode,
+  readOnly,
+  title,
+}: {
+  value: string;
+  onChange?: (v: string) => void;
+  align?: "left" | "right";
+  inputMode?: "numeric" | "decimal";
+  readOnly?: boolean;
+  title?: string;
+}) {
+  const alignCls = align === "right" ? "text-right" : "";
+  return (
+    <>
+      <input
+        value={value}
+        onChange={onChange ? (e) => onChange(e.target.value) : undefined}
+        readOnly={readOnly}
+        inputMode={inputMode}
+        title={title}
+        className={`${cellInput} kfc-screen-only ${alignCls} ${readOnly ? "cursor-default" : ""}`}
+      />
+      <div className={`kfc-print-only px-1 py-0.5 ${alignCls}`}>{value}</div>
+    </>
+  );
+}
+
 export default function KfcForm13Editor({
   items,
   signatories,
@@ -72,6 +110,7 @@ export default function KfcForm13Editor({
   initial?: KfcInitial;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const editing = !!initial;
   const keyRef = useState(() => ({ n: initial?.items.length ?? 1 }))[0];
 
@@ -135,10 +174,9 @@ export default function KfcForm13Editor({
       return;
     }
     setSaving(true);
-    const res = await fetch("/api/kfc-form-13", {
+    const result = await apiRequest("/api/kfc-form-13", {
       method: editing ? "PUT" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+      body: {
         id: initial?.id,
         title,
         form_date: date,
@@ -159,15 +197,18 @@ export default function KfcForm13Editor({
           classification_no: r.classification_no,
           remarks: r.remarks,
         })),
-      }),
+      },
     });
-    const json = await res.json();
     setSaving(false);
-    if (json.success) {
+    if (result.success) {
+      toast.success(result.message || `${editing ? "Updated" : "Saved"} K.F.C. Form 13`);
       router.push("/report/kfc-form-13");
       router.refresh();
     } else {
-      setMsg({ ok: false, text: json.message ?? "Save failed" });
+      // Keep the inline banner too: the editor is long, and the toast may
+      // scroll out of view before the user reaches the Save button again.
+      setMsg({ ok: false, text: result.message });
+      toast.error(result.message);
     }
   };
 
@@ -258,61 +299,82 @@ export default function KfcForm13Editor({
       </div>
 
       {/* Printable sheet */}
-      <div className="kfc-sheet rounded-lg border border-line bg-white p-4">
-        <div className="mb-2 text-center">
-          <div className="text-sm font-semibold text-slate-700">
-            Government Polytechnic College Nedumkandam
-          </div>
-          <div className="text-base font-bold tracking-wide text-slate-900">
-            REVERSE OF K.F.C. FORM 13
-          </div>
-        </div>
-
+      <div className="printable kfc-sheet rounded-lg border border-line bg-white p-4">
         <div className="overflow-x-auto">
           <table className="kfc-table w-full border-collapse text-xs" style={{ minWidth: "68rem" }}>
+            {/* Column widths live here, not on the <th>s: the print layout is
+                `table-layout: fixed`, which sizes from the <col>s and otherwise only
+                from the first row — and the first row cannot size columns 6 and 7,
+                because they sit under a single colSpan header. */}
+            <colgroup>
+              {["4%", "30%", "7%", "7%", "7%", "5%", "6%", "6%", "8%", "8%", "6%", "6%"].map(
+                (w, i) => (
+                  <col key={i} style={{ width: w }} />
+                )
+              )}
+              <col className="no-print" style={{ width: "3rem" }} />
+            </colgroup>
             <thead>
+              {/* @page has no margin, so the browser prints no header/footer — which
+                  means the sheet supplies its own margins. This spacer repeats with
+                  the thead and gives every page its top gap; the tfoot twin below
+                  does the same at the bottom. */}
+              <tr className="kfc-gap" aria-hidden="true">
+                <td className="kfc-gap-cell" colSpan={13} />
+              </tr>
+              <tr>
+                <th className="kfc-title border border-slate-400 px-2 py-2 text-center" colSpan={12}>
+                  <div className="text-sm font-semibold text-slate-700">
+                    Government Polytechnic College Nedumkandam
+                  </div>
+                  <div className="text-base font-bold tracking-wide text-slate-900">
+                    REVERSE OF K.F.C. FORM 13
+                  </div>
+                </th>
+                <th className="no-print border border-slate-400" />
+              </tr>
               <tr className="text-center align-middle text-[11px] font-semibold text-slate-700">
-                <th className="border border-slate-400 px-1 py-1" rowSpan={2} style={{ width: "3%" }}>
+                <th className="border border-slate-400 px-1 py-1" rowSpan={2}>
                   Serial number
                 </th>
-                <th className="border border-slate-400 px-1 py-1" rowSpan={2} style={{ width: "20%" }}>
+                <th className="border border-slate-400 px-1 py-1" rowSpan={2}>
                   Articles with full description and accurate specification, etc.
                 </th>
-                <th className="border border-slate-400 px-1 py-1" rowSpan={2} style={{ width: "7%" }}>
+                <th className="border border-slate-400 px-1 py-1" rowSpan={2}>
                   Stock on hand after verification
                 </th>
-                <th className="border border-slate-400 px-1 py-1" rowSpan={2} style={{ width: "8%" }}>
+                <th className="border border-slate-400 px-1 py-1" rowSpan={2}>
                   Purchase of the year including goods on order
                 </th>
-                <th className="border border-slate-400 px-1 py-1" rowSpan={2} style={{ width: "8%" }}>
+                <th className="border border-slate-400 px-1 py-1" rowSpan={2}>
                   Quantity required for the year
                 </th>
                 <th className="border border-slate-400 px-1 py-1" colSpan={2}>
                   Rate at which last purchased or estimated cost if fresh purchase
                   (which would be specified)
                 </th>
-                <th className="border border-slate-400 px-1 py-1" rowSpan={2} style={{ width: "10%" }}>
+                <th className="border border-slate-400 px-1 py-1" rowSpan={2}>
                   Name of last supplier
                 </th>
-                <th className="border border-slate-400 px-1 py-1" rowSpan={2} style={{ width: "12%" }}>
+                <th className="border border-slate-400 px-1 py-1" rowSpan={2}>
                   Purpose for which articles are required to guide supply
                 </th>
-                <th className="border border-slate-400 px-1 py-1" rowSpan={2} style={{ width: "10%" }}>
+                <th className="border border-slate-400 px-1 py-1" rowSpan={2}>
                   Place at which delivery is sought
                 </th>
-                <th className="border border-slate-400 px-1 py-1" rowSpan={2} style={{ width: "7%" }}>
+                <th className="border border-slate-400 px-1 py-1" rowSpan={2}>
                   Classification number
                 </th>
-                <th className="border border-slate-400 px-1 py-1" rowSpan={2} style={{ width: "9%" }}>
+                <th className="border border-slate-400 px-1 py-1" rowSpan={2}>
                   Remarks
                 </th>
                 <th className="no-print border border-slate-400 px-1 py-1" rowSpan={2} />
               </tr>
               <tr className="text-center text-[11px] font-semibold text-slate-700">
-                <th className="border border-slate-400 px-1 py-1" style={{ width: "6%" }}>Unit</th>
-                <th className="border border-slate-400 px-1 py-1" style={{ width: "7%" }}>Amount Rs.</th>
+                <th className="border border-slate-400 px-1 py-1">Unit</th>
+                <th className="border border-slate-400 px-1 py-1">Amount Rs.</th>
               </tr>
-              <tr className="text-center text-[10px] text-slate-500">
+              <tr className="kfc-nums text-center text-[10px] text-slate-500">
                 {Array.from({ length: 12 }, (_, i) => (
                   <th key={i} className="border border-slate-400 py-0.5 font-normal">
                     {i + 1}
@@ -322,130 +384,122 @@ export default function KfcForm13Editor({
               </tr>
             </thead>
             <tbody>
-              {rows.map((r, i) => {
-                return (
-                  <tr key={r.key} className="align-top">
-                    {/* 1 */}
-                    <td className="border border-slate-400 px-1 py-1 text-center text-xs text-slate-600">
-                      {i + 1}
-                    </td>
-                    {/* 2 Articles — item picker + expandable description */}
-                    <td className="border border-slate-400 px-1 py-1">
-                      <div className="no-print mb-1">
-                        <SearchableSelect
-                          value={r.item_id}
-                          onChange={(v) => pickItem(r.key, v)}
-                          options={itemOpts}
-                          placeholder="Select item…"
-                        />
-                      </div>
-                      <AutoGrowTextarea
-                        value={r.article}
-                        onChange={(e) => setRow(r.key, { article: e.target.value })}
-                        placeholder="Full description / specification…"
-                        className={cellInput}
+              {rows.map((r, i) => (
+                <tr key={r.key} className="kfc-row align-top">
+                  {/* 1 */}
+                  <td className="border border-slate-400 px-1 py-1 text-center text-xs text-slate-600">
+                    {i + 1}
+                  </td>
+                  {/* 2 Articles — item picker + expandable description */}
+                  <td className="kfc-article border border-slate-400 px-1 py-1">
+                    <div className="no-print mb-1">
+                      <SearchableSelect
+                        value={r.item_id}
+                        onChange={(v) => pickItem(r.key, v)}
+                        options={itemOpts}
+                        placeholder="Select item…"
                       />
-                    </td>
-                    {/* 3 Stock on hand (auto) */}
-                    <td className="border border-slate-400">
-                      <input
-                        value={r.stock_on_hand}
-                        onChange={(e) => setRow(r.key, { stock_on_hand: e.target.value })}
-                        inputMode="numeric"
-                        className={`${cellInput} text-right`}
-                      />
-                    </td>
-                    {/* 4 Purchase of the year */}
-                    <td className="border border-slate-400">
-                      <input
-                        value={r.purchase_year}
-                        onChange={(e) => setRow(r.key, { purchase_year: e.target.value })}
-                        inputMode="numeric"
-                        className={`${cellInput} text-right`}
-                      />
-                    </td>
-                    {/* 5 Quantity required */}
-                    <td className="border border-slate-400">
-                      <input
-                        value={r.qty_required}
-                        onChange={(e) => setRow(r.key, { qty_required: e.target.value })}
-                        inputMode="decimal"
-                        className={`${cellInput} text-right`}
-                      />
-                    </td>
-                    {/* 6 Rate — Unit */}
-                    <td className="border border-slate-400">
-                      <input
-                        value={r.rate_unit}
-                        onChange={(e) => setRow(r.key, { rate_unit: e.target.value })}
-                        inputMode="decimal"
-                        className={`${cellInput} text-right`}
-                      />
-                    </td>
-                    {/* 7 Rate — Amount (auto) */}
-                    <td className="border border-slate-400 bg-slate-50/60">
-                      <input
-                        value={amountOf(r)}
-                        readOnly
-                        className={`${cellInput} cursor-default text-right`}
-                        title="Auto: Quantity × Unit rate"
-                      />
-                    </td>
-                    {/* 8 Supplier */}
-                    <td className="border border-slate-400">
-                      <input
-                        value={r.supplier}
-                        onChange={(e) => setRow(r.key, { supplier: e.target.value })}
-                        className={cellInput}
-                      />
-                    </td>
-                    {/* 9 Purpose */}
-                    <td className="border border-slate-400">
-                      <input
-                        value={r.purpose}
-                        onChange={(e) => setRow(r.key, { purpose: e.target.value })}
-                        className={cellInput}
-                      />
-                    </td>
-                    {/* 10 Delivery place */}
-                    <td className="border border-slate-400">
-                      <input
-                        value={r.delivery_place}
-                        onChange={(e) => setRow(r.key, { delivery_place: e.target.value })}
-                        className={cellInput}
-                      />
-                    </td>
-                    {/* 11 Classification number */}
-                    <td className="border border-slate-400">
-                      <input
-                        value={r.classification_no}
-                        onChange={(e) => setRow(r.key, { classification_no: e.target.value })}
-                        className={cellInput}
-                      />
-                    </td>
-                    {/* 12 Remarks */}
-                    <td className="border border-slate-400">
-                      <input
-                        value={r.remarks}
-                        onChange={(e) => setRow(r.key, { remarks: e.target.value })}
-                        className={cellInput}
-                      />
-                    </td>
-                    <td className="no-print border border-slate-400 text-center">
-                      <div className="flex justify-center">
-                        <TableAction tone="delete" icon={Trash2} onClick={() => removeRow(r.key)} title="Remove row" />
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+                    </div>
+                    <AutoGrowTextarea
+                      value={r.article}
+                      onChange={(e) => setRow(r.key, { article: e.target.value })}
+                      placeholder="Full description / specification…"
+                      className={`${cellInput} kfc-screen-only`}
+                    />
+                    <div className="kfc-print-only whitespace-pre-wrap px-1 py-0.5">
+                      {r.article}
+                    </div>
+                  </td>
+                  {/* 3 Stock on hand (auto) */}
+                  <td className="border border-slate-400">
+                    <Cell
+                      value={r.stock_on_hand}
+                      onChange={(v) => setRow(r.key, { stock_on_hand: v })}
+                      align="right"
+                      inputMode="numeric"
+                    />
+                  </td>
+                  {/* 4 Purchase of the year */}
+                  <td className="border border-slate-400">
+                    <Cell
+                      value={r.purchase_year}
+                      onChange={(v) => setRow(r.key, { purchase_year: v })}
+                      align="right"
+                      inputMode="numeric"
+                    />
+                  </td>
+                  {/* 5 Quantity required */}
+                  <td className="border border-slate-400">
+                    <Cell
+                      value={r.qty_required}
+                      onChange={(v) => setRow(r.key, { qty_required: v })}
+                      align="right"
+                      inputMode="decimal"
+                    />
+                  </td>
+                  {/* 6 Rate — Unit */}
+                  <td className="border border-slate-400">
+                    <Cell
+                      value={r.rate_unit}
+                      onChange={(v) => setRow(r.key, { rate_unit: v })}
+                      align="right"
+                      inputMode="decimal"
+                    />
+                  </td>
+                  {/* 7 Rate — Amount (auto) */}
+                  <td className="border border-slate-400 bg-slate-50/60">
+                    <Cell
+                      value={amountOf(r)}
+                      readOnly
+                      align="right"
+                      title="Auto: Quantity × Unit rate"
+                    />
+                  </td>
+                  {/* 8 Supplier */}
+                  <td className="border border-slate-400">
+                    <Cell value={r.supplier} onChange={(v) => setRow(r.key, { supplier: v })} />
+                  </td>
+                  {/* 9 Purpose */}
+                  <td className="border border-slate-400">
+                    <Cell value={r.purpose} onChange={(v) => setRow(r.key, { purpose: v })} />
+                  </td>
+                  {/* 10 Delivery place */}
+                  <td className="border border-slate-400">
+                    <Cell
+                      value={r.delivery_place}
+                      onChange={(v) => setRow(r.key, { delivery_place: v })}
+                    />
+                  </td>
+                  {/* 11 Classification number */}
+                  <td className="border border-slate-400">
+                    <Cell
+                      value={r.classification_no}
+                      onChange={(v) => setRow(r.key, { classification_no: v })}
+                    />
+                  </td>
+                  {/* 12 Remarks */}
+                  <td className="border border-slate-400">
+                    <Cell value={r.remarks} onChange={(v) => setRow(r.key, { remarks: v })} />
+                  </td>
+                  <td className="no-print border border-slate-400 text-center">
+                    <div className="flex justify-center">
+                      <TableAction tone="delete" icon={Trash2} onClick={() => removeRow(r.key)} title="Remove row" />
+                    </div>
+                  </td>
+                </tr>
+              ))}
             </tbody>
+            <tfoot className="kfc-gap" aria-hidden="true">
+              <tr>
+                <td className="kfc-gap-cell" colSpan={13} />
+              </tr>
+            </tfoot>
           </table>
         </div>
 
         {/* Signatory block */}
         {(signName || signDesignation) && (
-          <div className="mt-8 flex justify-end">
+          <div className="kfc-sign mt-8 flex justify-end">
             <div className="text-center text-xs text-slate-800">
               <div className="h-10" />
               <div className="font-semibold">{signName || " "}</div>
@@ -453,28 +507,77 @@ export default function KfcForm13Editor({
             </div>
           </div>
         )}
-
-        <div className="mt-2 text-right text-[10px] italic text-slate-400">
-          Form printed from www.finance.kerala.gov.in
-        </div>
       </div>
 
       <style>{`
         .kfc-table { border-collapse: collapse; }
         .kfc-table, .kfc-table th, .kfc-table td { border: 1px solid #334155; }
+        .kfc-print-only, .kfc-gap { display: none; }
         @media print {
           aside, header { display: none !important; }
           main { padding: 0 !important; background: #fff !important; overflow: visible !important; }
-          .no-print { display: none !important; }
-          .kfc-sheet { border: 0 !important; padding: 0 !important; }
-          .kfc-table { font-size: 9px !important; min-width: 0 !important; }
-          .kfc-table input, .kfc-table textarea { font-size: 9px !important; }
-          .kfc-table, .kfc-table th, .kfc-table td {
+          .no-print, .kfc-screen-only { display: none !important; }
+          .kfc-print-only { display: block !important; }
+          /* The shared .printable rule pins reports with position:absolute, which
+             clips a table that spans pages. Every other element on this page is
+             already display:none above, so the sheet can flow normally instead. */
+          .kfc-sheet {
+            position: static !important;
+            width: auto !important;
+            margin: 0 !important;
+            border: 0 !important;
+            /* Horizontal page margin — box padding applies on every page,
+               unlike vertical padding, which only lands on the first and last. */
+            padding: 0 8mm 8mm !important;
+            font-family: "Times New Roman", Times, serif !important;
+          }
+          .kfc-table {
+            width: 100% !important;
+            min-width: 0 !important;
+            table-layout: fixed;
+            border: 0 !important;
+          }
+          .kfc-table th, .kfc-table td {
             border: 1px solid #000 !important;
+            background: transparent !important;
+            color: #000 !important;
+            font-family: inherit !important;
+            font-size: 9.5px !important;
+            font-weight: normal !important;
+            line-height: 1.25 !important;
+            padding: 3px 4px !important;
+            text-align: center;
+            vertical-align: middle !important;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
-          @page { size: A4 landscape; margin: 8mm; }
+          /* The specification column is the only one set flush left and top;
+             every other column is centred both ways, as on the official form. */
+          .kfc-table td.kfc-article { text-align: left; vertical-align: top !important; }
+          /* The cell already carries the padding; the twin must not add its own,
+             and it inherits the column's alignment rather than the screen's. */
+          .kfc-table .kfc-print-only { padding: 0 !important; text-align: inherit !important; }
+          /* Data cells may break mid-token (unspaced specs, long part numbers);
+             headers wrap on spaces only, so a word like "number" never splits. */
+          .kfc-table td { overflow-wrap: anywhere; }
+          .kfc-table .kfc-nums th { font-weight: bold !important; }
+          .kfc-table .kfc-title { padding: 5px 4px !important; }
+          .kfc-table .kfc-title div:first-child { font-size: 11px !important; }
+          .kfc-table .kfc-title div:last-child { font-size: 12px !important; font-weight: bold !important; }
+          /* Repeat the title and the three header rows at the top of every page. */
+          .kfc-table thead { display: table-header-group; }
+          .kfc-row, .kfc-sign { break-inside: avoid; page-break-inside: avoid; }
+          tr.kfc-gap { display: table-row !important; }
+          tfoot.kfc-gap { display: table-footer-group !important; }
+          .kfc-table .kfc-gap-cell {
+            border: 0 !important;
+            height: 8mm !important;
+            padding: 0 !important;
+          }
+          /* Chrome paints its page header/footer (title, URL, page number, date)
+             inside the @page margin box. With no margin there is nowhere to paint
+             them, so they are omitted — the sheet provides the margins instead. */
+          @page { size: A4 landscape; margin: 0; }
         }
       `}</style>
     </div>

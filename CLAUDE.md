@@ -22,9 +22,9 @@ npm run typecheck    # tsc --noEmit  ← primary correctness gate
 npm run lint         # next lint (note: no ESLint config shipped; ignored during builds)
 
 # Database (Drizzle + drizzle-kit; needs DATABASE_URL)
-npm run db:push      # sync src/db/schema.ts to the DB (dev workflow of choice)
-npm run db:generate  # emit SQL migrations from the schema
-npm run db:migrate   # apply generated migrations
+npm run db:generate  # emit a SQL migration from the schema  <- after editing schema.ts
+npm run db:migrate   # apply pending migrations              <- then this
+npm run db:push      # push schema straight to the DB (see the warning below)
 npm run db:studio    # Drizzle Studio
 npm run db:seed      # minimal idempotent seed (admin user + menu + masters)
 
@@ -32,6 +32,37 @@ npm run db:seed      # minimal idempotent seed (admin user + menu + masters)
 npm run db:convert -- ./stock_db.sql   # MySQL dump → pg_seed.sql
 npm run db:load                        # load pg_seed.sql via postgres.js (no psql needed)
 ```
+
+**Schema changes go through migrations.** `drizzle/` holds the migration history
+(`0000_chilly_deathbird.sql` is the baseline, covering the whole schema) and
+`drizzle/meta/` holds the snapshot drizzle-kit diffs against. The loop is: edit
+`src/db/schema.ts` -> `npm run db:generate` -> review the emitted SQL ->
+`npm run db:migrate`. Verify with `npx drizzle-kit check` ("Everything's fine")
+and a second `db:generate` ("No schema changes, nothing to migrate").
+
+**Prefer migrations over `db:push` now that they exist.** `push` writes to the
+database without recording a migration, so the DB and the snapshot drift apart
+and the next `db:generate` emits a migration that re-applies work already done.
+It also prompts interactively, which hangs in a non-interactive shell. Baseline
+migrations use `CREATE TABLE IF NOT EXISTS`, so applying them to a database that
+already has the tables is a safe no-op.
+
+**Only ever run one `next dev` against this directory, and never `npm run build`
+while it is running.** Both write to the same `.next/`, and concurrent writers
+corrupt its manifests: `app-build-manifest.json` collapses to `{"pages":{}}` (that
+file maps each page to its CSS, so the app renders as unstyled raw HTML with
+the stylesheet orphaned on disk), and `routes-manifest.json` gets deleted out
+from under the server, which 500s pages with `ENOENT … routes-manifest.json`.
+
+Duplicate dev servers accumulate easily: `npm run dev` spawns a parent
+(`next dev`) **and** a child that holds the port, so killing whatever listens on
+the port leaves the parent alive to respawn. Check with
+`Get-CimInstance Win32_Process -Filter "Name='node.exe'"` and match on the
+project path before killing anything — a sibling project (`../erp_admin`) usually
+holds port 3000, so this app lands on 3001 and the two are easy to confuse.
+
+Recovery: stop **every** node process for this project, `rm -rf .next`, then start
+a single dev server.
 
 There is **no test runner** — `npm run typecheck` is the main verification step.
 `next.config.ts` sets `ignoreDuringBuilds` for ESLint, so lint never blocks a
@@ -152,11 +183,59 @@ will not theme correctly.
   tokens, so most pages inherit the theme for free. Fix look-and-feel there once
   rather than per page.
 
+## Feedback & error handling (required)
+
+Every write the user triggers must say what happened, and no failure may leave
+the UI stuck. These are hard rules — don't hand-roll a banner, and never call
+`alert()` or `confirm()`:
+
+- **Never call the browser's `alert()` / `confirm()` / `prompt()`.** They block
+  the tab, can't be themed, and show the origin ("localhost:3000 says") above
+  your message. Use the two providers mounted in `(dashboard)/layout.tsx`:
+  - **Messages → `useToast()`** (`src/components/ui/toast.tsx`):
+    `toast.success("Saved")`, `.error()`, `.warning()`, `.info()`. Toasts stack
+    (max 4), auto-dismiss (errors linger longest), and set `role="alert"` for
+    errors / `role="status"` otherwise.
+  - **Confirmations → `useConfirm()`** (`src/components/ui/confirm.tsx`):
+    `if (!(await confirm({ title, description, tone: "danger" }))) return;`
+    It resolves to a boolean, so the call site still reads top-to-bottom.
+    Use `tone: "danger"` for anything destructive.
+- **Never call `fetch()` directly from a client component.** Use
+  `apiRequest()` (or `apiPost/apiPut/apiPatch/apiDelete`) from
+  `src/lib/api-client.ts`. A bare `await res.json()` throws on a 500 that
+  returns Next's HTML error page, on a dropped connection, and on an expired
+  session that redirects to `/login` — and because the caller is normally
+  mid-`setSaving(true)`, the button sticks on "Saving…" for ever and the user
+  is told nothing. `apiRequest` never throws: it always resolves to
+  `{ success, message, status, data }` with a readable message for each of
+  those cases.
+- **`toast.fromResult(result, { success, error })`** is the one-liner for the
+  common path — it picks the tone, shows `result.message`, and returns the
+  boolean so you can write
+  `if (toast.fromResult(result)) router.refresh();`.
+- **Where the message goes.** A toast for anything the user triggered from a
+  list or a row action. Keep an **inline** message instead (or as well) when
+  the error belongs next to the field being fixed — a validation error inside
+  a `CrudTable` dialog, or a long editor where the toast would scroll out of
+  view before the user gets back to Save. `CrudTable`, `kfc-editor` and
+  `document-builder` show the intended mix.
+- **Route handlers keep answering `{ success, message }`** with a real HTTP
+  status (400 validation, 401 unauthenticated, 403 refused, 404 missing, 500
+  unexpected). `apiRequest` reads `message` straight through to the toast, so
+  the server's wording is what the user sees — make it a sentence they can act
+  on, not an exception dump.
+
 ## Code quality (required)
 
 - **No redundant code.** Reuse existing shared components, helpers and route
   handlers before writing new ones (the generic masters route, `CrudTable`,
-  `buttonClasses()`, `getIndentOptions()`, `StatusBadge` are examples). If the
+  `buttonClasses()`, `getIndentOptions()`, `StatusBadge`, `AttachmentPanel` are
+  examples). **File uploads go through `AttachmentPanel`**
+  (`src/components/attachment-panel.tsx`) and `/api/attachment`, which store
+  many categorised files against a committee or an event — do not add another
+  single-file column and uploader. It is a container-query component
+  (`@container` + `@md:`/`@4xl:`), so it lays itself out from the width of the
+  card it sits in, not the viewport. If the
   same query, markup or class list appears twice, extract it. Duplicated colour
   strings are a smell — use a token or a shared helper.
 - **Optimised code.** Fetch in parallel (`Promise.all`) in server components;

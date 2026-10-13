@@ -87,6 +87,11 @@ async function main() {
     { id: 14, menu_id: 3, menu_order: 8, menu_level: 1, menu_name: "Department", url: "department/index", text: "Department", display: "Y" },
     { id: 111, menu_id: 3, menu_order: 4, menu_level: 1, menu_name: "Service Provider", url: "provider", text: "Service Provider", display: "Y" },
     { id: 200, menu_id: 3, menu_order: 30, menu_level: 1, menu_name: "Unit", url: "unit", text: "Unit", display: "Y" },
+    // Committees & events — see scripts/add-committee-event-menu.ts, which also
+    // creates the role mappings a non-Super-Admin needs.
+    { id: 132, menu_id: 132, menu_order: 7, menu_level: 0, menu_name: "Committees & Events", url: "#", text: "Committees & Events", icon: "ti ti-confetti", display: "Y" },
+    { id: 133, menu_id: 132, menu_order: 1, menu_level: 1, menu_name: "Committees", url: "committee", text: "Committees", icon: "ti ti-users-group", display: "Y" },
+    { id: 134, menu_id: 132, menu_order: 2, menu_level: 1, menu_name: "Events", url: "event", text: "Events", icon: "ti ti-calendar-event", display: "Y" },
   ]).onConflictDoNothing();
 
   console.log("✔ Seed complete. Login as supadmin.");
