@@ -176,7 +176,7 @@ export default function DocumentRemarks({
               onClick={add}
               disabled={!canAdd}
               title="Add remark"
-              className="inline-flex h-9 w-11 items-center justify-center rounded-lg bg-accent text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-40"
+              className="inline-flex h-9 w-11 items-center justify-center rounded-lg bg-accent-grad text-on-accent transition-opacity hover:opacity-90 disabled:opacity-40"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
             </button>

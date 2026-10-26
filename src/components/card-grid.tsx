@@ -131,7 +131,7 @@ export default function CardGrid<T extends { id: number }>({
       aria-pressed={valueFor(facetLabel) === value}
       className={`whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset transition-colors ${
         valueFor(facetLabel) === value
-          ? "bg-accent text-accent-fg ring-transparent"
+          ? "bg-accent-grad text-on-accent ring-transparent"
           : "bg-elevated text-muted ring-line hover:text-fg"
       }`}
     >
@@ -146,7 +146,7 @@ export default function CardGrid<T extends { id: number }>({
       aria-pressed={view === value}
       title={label}
       className={`inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
-        view === value ? "bg-accent text-accent-fg" : "text-muted hover:bg-elevated hover:text-fg"
+        view === value ? "bg-accent-grad text-on-accent" : "text-muted hover:bg-elevated hover:text-fg"
       }`}
     >
       {icon}

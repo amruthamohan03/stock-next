@@ -6,7 +6,7 @@ import IndentTable from "./indent-table";
 import { getIndentOptions } from "./options";
 
 export default async function IndentPage() {
-  const { groups, items, makes, models } = await getIndentOptions();
+  const { groups, items, makes, models, books, departments } = await getIndentOptions();
 
   const rows = await db
     .select({
@@ -44,7 +44,14 @@ export default async function IndentPage() {
 
   return (
     <div className="space-y-6">
-      <IndentForm groups={groups} items={items} makes={makes} models={models} />
+      <IndentForm
+        groups={groups}
+        items={items}
+        makes={makes}
+        models={models}
+        books={books}
+        departments={departments}
+      />
       <IndentTable rows={rows} />
     </div>
   );

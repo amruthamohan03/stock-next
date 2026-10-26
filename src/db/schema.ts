@@ -493,6 +493,32 @@ export const daybookItemT = pgTable("daybook_item_t", {
 
 /* ------------------------------------------------------------------ indent */
 
+// The physical indent books kept in the store. An indent's `book_no` points at
+// one of these, so the register a demand was written in is a named record
+// rather than a bare number typed on the form.
+//
+// `item_type_ids` holds the daybook_item_type_t ids a book covers, comma
+// separated — a book is usually opened for one kind of article (consumable,
+// dead stock, perishable) but some cover several, and the UI offers them as a
+// multi-select. A join table would need its own route for what is one short
+// list per row; the CSV keeps this inside the generic masters route.
+export const indentBookT = pgTable("indent_book_t", {
+  id: pk(),
+  book_name: varchar({ length: 150 }).notNull(),
+  book_no: integer(),
+  volume: integer().default(1),
+  department_id: integer(),
+  item_type_ids: varchar({ length: 100 }),
+  academic_year: varchar({ length: 20 }),
+  total_pages: integer(),
+  description: text(),
+  created_by: integer(),
+  updated_by: integer(),
+  created_at: createdAt(),
+  updated_at: updatedAt(),
+  display: varchar({ length: 1 }).default("Y"),
+});
+
 export const indentMasterT = pgTable("indent_master_t", {
   id: pk(),
   department_id: integer().notNull().default(1),
@@ -881,6 +907,29 @@ export const stockbookTypeT = pgTable("stockbook_type_t", {
   created_at: createdAt(),
 });
 
+// The physical stock registers. Distinct from stock_book_t below, which is the
+// per-item/location balance ledger: this is the bound book itself, the one
+// indent_item_t.stock_book_volume and stock_book_page_no refer to.
+// `stockbook_type_id` is the register type (Main Stock, Equipment, …) already
+// held in stockbook_type_t; `item_type_ids` is a CSV like indent_book_t's.
+export const stockBookMasterT = pgTable("stock_book_master_t", {
+  id: pk(),
+  book_name: varchar({ length: 150 }).notNull(),
+  book_no: integer(),
+  volume: integer().default(1),
+  stockbook_type_id: integer(),
+  department_id: integer(),
+  item_type_ids: varchar({ length: 100 }),
+  academic_year: varchar({ length: 20 }),
+  total_pages: integer(),
+  description: text(),
+  created_by: integer(),
+  updated_by: integer(),
+  created_at: createdAt(),
+  updated_at: updatedAt(),
+  display: varchar({ length: 1 }).default("Y"),
+});
+
 export const stockBookT = pgTable("stock_book_t", {
   id: pk(),
   item_id: integer().notNull(),
@@ -916,6 +965,11 @@ export const stockTransactionT = pgTable("stock_transaction_t", {
   institution_id: integer().notNull().default(1),
   department_id: integer().notNull().default(1),
   stock_book_id: integer().notNull(),
+  // Which physical register the entry was written into (stock_book_master_t).
+  // Separate from stock_book_id above, which is the per-item/location balance
+  // ledger the running totals are computed from. Nullable: entries made before
+  // the register master existed have none.
+  stock_book_master_id: integer(),
   transaction_date: date().notNull(),
   transaction_type: varchar({ length: 20 }).notNull(),
   stock_entry_type: varchar({ length: 20 }).default("INDENT_BASED"),

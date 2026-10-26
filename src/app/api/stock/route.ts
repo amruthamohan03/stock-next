@@ -11,6 +11,9 @@ const TYPES = new Set(["RECEIPT", "ISSUE", "ADJUSTMENT"]);
 type Body = {
   id?: number;
   stock_book_id?: string | number;
+  stock_book_master_id?: string | number;
+  department_id?: string | number;
+  issued_to_location_id?: string | number;
   transaction_type?: string;
   transaction_date?: string;
   qty?: string | number;
@@ -78,11 +81,18 @@ async function recompute(
 /** Shared validation + coercion for create / update. */
 function parse(body: Body) {
   const bookId = Number(body.stock_book_id);
+  const departmentId = Number(body.department_id);
+  // Optional: the register master may be empty, and older entries predate it.
+  const registerId = Number(body.stock_book_master_id);
+  // Optional, and only set on issues; cleared otherwise so a type change does
+  // not leave a stale destination behind.
+  const issuedTo = Number(body.issued_to_location_id);
   const type = String(body.transaction_type ?? "").trim().toUpperCase();
   const date = String(body.transaction_date ?? "").trim();
   const qty = Number(body.qty);
 
   if (!Number.isInteger(bookId) || bookId <= 0) return { error: "Select a stock book" };
+  if (!Number.isInteger(departmentId) || departmentId <= 0) return { error: "Select a department" };
   if (!TYPES.has(type)) return { error: "Choose a valid transaction type" };
   if (!date) return { error: "Transaction date is required" };
   if (Number.isNaN(qty) || qty === 0) return { error: "Enter a non-zero quantity" };
@@ -93,6 +103,10 @@ function parse(body: Body) {
     bookId,
     values: {
       stock_book_id: bookId,
+      stock_book_master_id: Number.isInteger(registerId) && registerId > 0 ? registerId : null,
+      issued_to_location_id:
+        type === "ISSUE" && Number.isInteger(issuedTo) && issuedTo > 0 ? issuedTo : null,
+      department_id: departmentId,
       transaction_type: type,
       transaction_date: date,
       receipt_qty: receipt,
@@ -123,7 +137,6 @@ export async function POST(req: NextRequest) {
         .values({
           ...parsed.values,
           institution_id: 1,
-          department_id: 1,
           stock_entry_type: "MANUAL",
           balance_qty: 0, // recompute() fills the real figure below
           created_by: session.id,

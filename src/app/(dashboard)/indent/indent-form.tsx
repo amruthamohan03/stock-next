@@ -18,6 +18,7 @@ export type ModelOption = { id: number; name: string; make_id: number | null };
 export type IndentInitial = {
   id: number;
   book_no: string;
+  department_id: string;
   indent_no: string;
   item_type: string;
   indent_date: string;
@@ -63,17 +64,29 @@ const todayIso = () => {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 };
 
+/** A row of the Indent Book master — what `book_no` points at. */
+export type BookOption = {
+  id: number;
+  name: string;
+  book_no: number | null;
+  volume: number | null;
+};
+
 export default function IndentForm({
   groups: initialGroups,
   items,
   makes,
   models,
+  books,
+  departments,
   initial,
 }: {
   groups: Option[];
   items: Option[];
   makes: Option[];
   models: ModelOption[];
+  books: BookOption[];
+  departments: Option[];
   initial?: IndentInitial;
 }) {
   const router = useRouter();
@@ -84,6 +97,7 @@ export default function IndentForm({
 
   const [groups, setGroups] = useState<Option[]>(initialGroups);
   const [bookNo, setBookNo] = useState(initial?.book_no ?? "");
+  const [deptId, setDeptId] = useState(initial?.department_id ?? "");
   const [indentNo, setIndentNo] = useState(initial?.indent_no ?? "");
   const [itemType, setItemType] = useState(initial?.item_type ?? "N");
   const [date, setDate] = useState(initial?.indent_date ?? todayIso());
@@ -95,6 +109,31 @@ export default function IndentForm({
   );
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const deptOpts = useMemo(() => {
+    const opts = departments.map((d) => ({ value: String(d.id), label: d.name }));
+    // A record pointing at a department that is no longer in the master keeps
+    // showing it, so the select is never silently blank on an edit.
+    if (deptId && !opts.some((o) => o.value === deptId)) {
+      opts.unshift({ value: deptId, label: `Department ${deptId} (not in master)` });
+    }
+    return opts;
+  }, [departments, deptId]);
+
+  const bookOpts = useMemo(() => {
+    const opts = books.map((b) => ({
+      value: String(b.id),
+      label: b.book_no
+        ? `${b.name} (Book ${b.book_no}${b.volume && b.volume > 1 ? `, Vol ${b.volume}` : ""})`
+        : b.name,
+    }));
+    // An indent saved before the master existed keeps its number; show it
+    // rather than silently resetting the field to blank on the next save.
+    if (bookNo && !opts.some((o) => o.value === bookNo)) {
+      opts.unshift({ value: bookNo, label: `Book ${bookNo} (not in master)` });
+    }
+    return opts;
+  }, [books, bookNo]);
 
   const groupOpts = useMemo(() => groups.map((g) => ({ value: g.id, label: g.name })), [groups]);
   const itemOpts = useMemo(() => items.map((i) => ({ value: i.id, label: i.name })), [items]);
@@ -146,6 +185,10 @@ export default function IndentForm({
 
   const save = async () => {
     setMsg(null);
+    if (!deptId) {
+      setMsg({ ok: false, text: "Select a department." });
+      return;
+    }
     if (!bookNo.trim() || !indentNo.trim() || !date) {
       setMsg({ ok: false, text: "Book No, Indent No and Date are required." });
       return;
@@ -162,6 +205,7 @@ export default function IndentForm({
       body: JSON.stringify({
         id: initial?.id,
         book_no: bookNo,
+        department_id: deptId,
         indent_no: indentNo,
         item_type: itemType,
         indent_date: date,
@@ -232,12 +276,26 @@ export default function IndentForm({
         {/* Header fields */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <Label>Book No <span className="text-red-500">*</span></Label>
-            <Input type="number" value={bookNo} onChange={(e) => setBookNo(e.target.value)} />
+            <Label>Indent Book <span className="text-red-500">*</span></Label>
+            <SearchableSelect
+              value={bookNo}
+              onChange={setBookNo}
+              options={bookOpts}
+              placeholder={books.length ? "Select a book" : "No indent books yet"}
+            />
           </div>
           <div>
             <Label>Indent No <span className="text-red-500">*</span></Label>
             <Input value={indentNo} onChange={(e) => setIndentNo(e.target.value)} />
+          </div>
+          <div>
+            <Label>Department <span className="text-red-500">*</span></Label>
+            <SearchableSelect
+              value={deptId}
+              onChange={setDeptId}
+              options={deptOpts}
+              placeholder="Select a department"
+            />
           </div>
           <div>
             <Label>Item Type <span className="text-red-500">*</span></Label>
@@ -400,8 +458,8 @@ export default function IndentForm({
         </div>
 
         <div className="flex justify-end">
-          <Button onClick={save} disabled={saving}>
-            <Save className="h-4 w-4" />{" "}
+          <Button onClick={save} loading={saving} size="lg">
+            {!saving && <Save className="h-4 w-4" />}
             {saving ? "Saving…" : editing ? "Update Indent" : "Save Indent"}
           </Button>
         </div>

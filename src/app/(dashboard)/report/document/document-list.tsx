@@ -167,7 +167,7 @@ export default function DocumentList({ rows }: { rows: DocumentRow[] }) {
                   the step it performs. Gone once the document is final. */}
               {to && (
                 <TableAction
-                  tone={to === "SUBMITTED" ? "edit" : "view"}
+                  tone="success"
                   icon={to === "SUBMITTED" ? Send : CheckCircle2}
                   onClick={() => advance(r)}
                   disabled={moving === r.id}

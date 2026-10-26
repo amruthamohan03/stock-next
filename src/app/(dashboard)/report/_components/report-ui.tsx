@@ -43,7 +43,7 @@ export function ReportTabs({
   };
 
   return (
-    <div className="no-print flex flex-wrap gap-1 rounded-xl border border-line bg-card p-1">
+    <div className="no-print flex flex-wrap gap-1 rounded-xl border border-line bg-card p-1 shadow-card">
       {tabs.map((t) => {
         const active = t.key === current;
         const Icon = t.icon;
@@ -51,9 +51,9 @@ export function ReportTabs({
           <Link
             key={t.key}
             href={hrefFor(t.key)}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors ${
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium transition-all duration-150 ${
               active
-                ? "bg-accent text-accent-fg shadow-sm"
+                ? "bg-accent-grad text-on-accent shadow-sm"
                 : "text-muted hover:bg-elevated hover:text-fg"
             }`}
           >

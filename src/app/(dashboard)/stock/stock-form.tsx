@@ -7,12 +7,25 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { apiRequest } from "@/lib/api-client";
 
 export type StockBookOption = { id: number; name: string };
+export type DepartmentOption = { id: number; name: string };
+export type LocationOption = { id: number; name: string };
+/** A row of the Stock Book master — the register an entry is written into. */
+export type RegisterOption = {
+  id: number;
+  name: string;
+  book_no: number | null;
+  volume: number | null;
+};
 
 export type StockInitial = {
   id: number;
   stock_book_id: string;
+  stock_book_master_id: string;
+  department_id: string;
+  issued_to_location_id: string;
   transaction_type: string;
   transaction_date: string;
   qty: string;
@@ -48,15 +61,24 @@ const todayIso = () => {
 
 export default function StockForm({
   stockBooks,
+  departments,
+  registers,
+  locations,
   initial,
 }: {
   stockBooks: StockBookOption[];
+  departments: DepartmentOption[];
+  registers: RegisterOption[];
+  locations: LocationOption[];
   initial?: StockInitial;
 }) {
   const router = useRouter();
   const editing = !!initial;
 
   const [stockBookId, setStockBookId] = useState(initial?.stock_book_id ?? "");
+  const [deptId, setDeptId] = useState(initial?.department_id ?? "");
+  const [registerId, setRegisterId] = useState(initial?.stock_book_master_id ?? "");
+  const [issuedTo, setIssuedTo] = useState(initial?.issued_to_location_id ?? "");
   const [type, setType] = useState(initial?.transaction_type ?? "RECEIPT");
   const [date, setDate] = useState(initial?.transaction_date ?? todayIso());
   const [qty, setQty] = useState(initial?.qty ?? "");
@@ -73,9 +95,34 @@ export default function StockForm({
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const bookOpts = stockBooks.map((b) => ({ value: b.id, label: b.name }));
+  const registerOpts = registers.map((r) => ({
+    value: String(r.id),
+    label: r.book_no
+      ? `${r.name} (Book ${r.book_no}${r.volume && r.volume > 1 ? `, Vol ${r.volume}` : ""})`
+      : r.name,
+  }));
+  const locationOpts = locations.map((l) => ({ value: String(l.id), label: l.name }));
+  if (issuedTo && !locationOpts.some((o) => o.value === issuedTo)) {
+    locationOpts.unshift({ value: issuedTo, label: `Location ${issuedTo} (not in master)` });
+  }
+
+  // A transaction filed against a register that was later removed keeps showing
+  // it, instead of the select falling back to a blank box.
+  if (registerId && !registerOpts.some((o) => o.value === registerId)) {
+    registerOpts.unshift({ value: registerId, label: `Stock book ${registerId} (not in master)` });
+  }
+  const deptOpts = departments.map((d) => ({ value: String(d.id), label: d.name }));
+  // Older transactions can carry a department that is no longer in the master;
+  // show it rather than rendering an empty select.
+  if (deptId && !deptOpts.some((o) => o.value === deptId)) {
+    deptOpts.unshift({ value: deptId, label: `Department ${deptId} (not in master)` });
+  }
 
   const reset = () => {
     setStockBookId("");
+    setRegisterId("");
+    setIssuedTo("");
+    setDeptId("");
     setType("RECEIPT");
     setDate(todayIso());
     setQty("");
@@ -93,18 +140,22 @@ export default function StockForm({
   const save = async () => {
     setMsg(null);
     if (!stockBookId) return setMsg({ ok: false, text: "Select a stock book." });
+    if (!deptId) return setMsg({ ok: false, text: "Select a department." });
     if (!date) return setMsg({ ok: false, text: "Transaction date is required." });
     if (!qty || Number(qty) === 0) return setMsg({ ok: false, text: "Enter a non-zero quantity." });
     if (type !== "ADJUSTMENT" && Number(qty) < 0)
       return setMsg({ ok: false, text: "Quantity must be positive for receipts and issues." });
 
     setSaving(true);
-    const res = await fetch("/api/stock", {
+    const result = await apiRequest("/api/stock", {
       method: editing ? "PUT" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+      body: {
         id: initial?.id,
         stock_book_id: stockBookId,
+        stock_book_master_id: registerId,
+        department_id: deptId,
+        // Only meaningful when stock leaves the store.
+        issued_to_location_id: type === "ISSUE" ? issuedTo : "",
         transaction_type: type,
         transaction_date: date,
         qty,
@@ -116,21 +167,20 @@ export default function StockForm({
         serial_no: serialNo,
         description,
         remarks,
-      }),
+      },
     });
-    const json = await res.json();
     setSaving(false);
-    if (json.success) {
+    if (result.success) {
       if (editing) {
         router.push(`/stock/${initial!.id}`);
         router.refresh();
       } else {
-        setMsg({ ok: true, text: json.message });
+        setMsg({ ok: true, text: result.message });
         reset();
         router.refresh();
       }
     } else {
-      setMsg({ ok: false, text: json.message ?? "Save failed" });
+      setMsg({ ok: false, text: result.message });
     }
   };
 
@@ -171,12 +221,32 @@ export default function StockForm({
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="sm:col-span-2">
-            <Label>Stock Book <span className="text-red-500">*</span></Label>
+            <Label>Item / Location <span className="text-red-500">*</span></Label>
             <SearchableSelect
               value={stockBookId}
               onChange={setStockBookId}
               options={bookOpts}
               placeholder="Item — location"
+            />
+          </div>
+          <div>
+            <Label>Stock Book</Label>
+            <SearchableSelect
+              value={registerId}
+              onChange={setRegisterId}
+              options={registerOpts}
+              placeholder={
+                registers.length ? "Select a stock book" : "No stock books in the master yet"
+              }
+            />
+          </div>
+          <div>
+            <Label>Department <span className="text-red-500">*</span></Label>
+            <SearchableSelect
+              value={deptId}
+              onChange={setDeptId}
+              options={deptOpts}
+              placeholder="Select a department"
             />
           </div>
           <div>
@@ -191,6 +261,17 @@ export default function StockForm({
             <Label>Date <span className="text-red-500">*</span></Label>
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
+          {type === "ISSUE" && (
+            <div>
+              <Label>Issued To</Label>
+              <SearchableSelect
+                value={issuedTo}
+                onChange={setIssuedTo}
+                options={locationOpts}
+                placeholder={locations.length ? "Select a location" : "No locations yet"}
+              />
+            </div>
+          )}
           <div>
             <Label>Item Status</Label>
             <SearchableSelect value={itemStatus} onChange={setItemStatus} options={STATUS_OPTS} />
@@ -239,8 +320,8 @@ export default function StockForm({
         </div>
 
         <div className="flex justify-end">
-          <Button onClick={save} disabled={saving}>
-            <Save className="h-4 w-4" />{" "}
+          <Button onClick={save} loading={saving} size="lg">
+            {!saving && <Save className="h-4 w-4" />}
             {saving ? "Saving…" : editing ? "Update Transaction" : "Save Transaction"}
           </Button>
         </div>

@@ -16,7 +16,7 @@ export default async function IndentEditPage({
   const indentId = Number(id);
   if (!indentId) notFound();
 
-  const [{ groups, items, makes, models }, headerRows] = await Promise.all([
+  const [{ groups, items, makes, models, books, departments }, headerRows] = await Promise.all([
     getIndentOptions(),
     db
       .select()
@@ -37,6 +37,7 @@ export default async function IndentEditPage({
   const initial: IndentInitial = {
     id: header.id,
     book_no: s(header.book_no),
+    department_id: s(header.department_id),
     indent_no: s(header.indent_no),
     item_type: header.item_type ?? "N",
     indent_date: s(header.indent_date),
@@ -64,6 +65,8 @@ export default async function IndentEditPage({
         items={items}
         makes={makes}
         models={models}
+        books={books}
+        departments={departments}
         initial={initial}
       />
     </div>

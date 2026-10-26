@@ -18,6 +18,9 @@ import {
   committeeT,
   studyMaterialT,
   fdpT,
+  indentBookT,
+  stockBookMasterT,
+  issuedToMasterT,
 } from "@/db/schema";
 
 export type MasterConfig = {
@@ -26,6 +29,10 @@ export type MasterConfig = {
   writable: string[];
   /** Columns that should be coerced to integers. */
   numeric?: string[];
+  /** Numeric columns where a blank value means "not set" and must be stored as
+   *  NULL rather than 0 — foreign keys, page counts and the like. Flag columns
+   *  (0/1) are left out, since 0 is a real value for them. */
+  nullWhenBlank?: string[];
   /** Columns bcrypt-hashed before writing (e.g. password). Blank = skipped,
    *  so on update an empty value keeps the existing hash. */
   hash?: string[];
@@ -43,6 +50,62 @@ export type MasterConfig = {
  * The client field descriptors live alongside each page.
  */
 export const MASTERS: Record<string, MasterConfig> = {
+  // Where items live and where they are issued to — labs, stores, offices.
+  // The table keeps its original name (issued_to_master_t): stock transactions
+  // already point at it through issued_to_location_id and
+  // transferred_from_location_id, so the rows must keep their ids.
+  location: {
+    table: issuedToMasterT,
+    writable: [
+      "location_code",
+      "location_name",
+      "description",
+      "contact_person",
+      "phone",
+      "display",
+    ],
+    requiredOnInsert: ["location_code", "location_name"],
+    unique: ["location_code"],
+  },
+  // The physical indent books. An indent's book_no is one of these ids, so a
+  // book must keep its id once indents point at it — soft delete, never hard.
+  "indent-book": {
+    table: indentBookT,
+    writable: [
+      "book_name",
+      "book_no",
+      "volume",
+      "department_id",
+      "item_type_ids",
+      "academic_year",
+      "total_pages",
+      "description",
+      "display",
+    ],
+    numeric: ["book_no", "volume", "department_id", "total_pages"],
+    nullWhenBlank: ["book_no", "volume", "department_id", "total_pages"],
+    requiredOnInsert: ["book_name"],
+  },
+  // The physical stock registers — the bound books, not the balance ledger in
+  // stock_book_t.
+  "stock-book": {
+    table: stockBookMasterT,
+    writable: [
+      "book_name",
+      "book_no",
+      "volume",
+      "stockbook_type_id",
+      "department_id",
+      "item_type_ids",
+      "academic_year",
+      "total_pages",
+      "description",
+      "display",
+    ],
+    numeric: ["book_no", "volume", "stockbook_type_id", "department_id", "total_pages"],
+    nullWhenBlank: ["book_no", "volume", "stockbook_type_id", "department_id", "total_pages"],
+    requiredOnInsert: ["book_name"],
+  },
   // Faculty Development Programmes attended by staff. Certificates and
   // schedules are attached separately via /api/attachment (owner_type FDP).
   fdp: {

@@ -5,6 +5,7 @@ import { db } from "@/db";
 import {
   stockTransactionT,
   stockBookT,
+  stockBookMasterT,
   itemMasterT,
   issuedToMasterT,
   indentMasterT,
@@ -43,6 +44,8 @@ export default async function StockTransactionPage({
       item_type: stockTransactionT.item_type,
       item_category: stockTransactionT.item_category,
       book_volume: stockTransactionT.book_volume,
+      register_name: stockBookMasterT.book_name,
+      register_no: stockBookMasterT.book_no,
       voucher_no: stockTransactionT.voucher_no,
       voucher_date: stockTransactionT.voucher_date,
       receipt_qty: stockTransactionT.receipt_qty,
@@ -66,6 +69,7 @@ export default async function StockTransactionPage({
     })
     .from(stockTransactionT)
     .leftJoin(stockBookT, eq(stockTransactionT.stock_book_id, stockBookT.id))
+    .leftJoin(stockBookMasterT, eq(stockTransactionT.stock_book_master_id, stockBookMasterT.id))
     .leftJoin(itemMasterT, eq(stockBookT.item_id, itemMasterT.id))
     .leftJoin(toLoc, eq(stockTransactionT.issued_to_location_id, toLoc.id))
     .leftJoin(fromLoc, eq(stockTransactionT.transferred_from_location_id, fromLoc.id))
@@ -148,6 +152,12 @@ export default async function StockTransactionPage({
             {field("Item Type", txn.item_type)}
             {field("Category", txn.item_category)}
             {field("Location", txn.location)}
+            {field(
+              "Stock Book",
+              txn.register_name
+                ? `${txn.register_name}${txn.register_no ? ` (Book ${txn.register_no})` : ""}`
+                : null
+            )}
             {field("Book Volume", txn.book_volume)}
             {field("Voucher No", txn.voucher_no)}
             {field("Voucher Date", txn.voucher_date ? formatDate(txn.voucher_date) : null)}

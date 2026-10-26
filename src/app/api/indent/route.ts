@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
 
   const body = (await req.json()) as {
     book_no?: string | number;
+    department_id?: string | number;
     indent_no?: string;
     item_type?: string;
     indent_date?: string;
@@ -39,11 +40,14 @@ export async function POST(req: NextRequest) {
   };
 
   const bookNo = Number(body.book_no);
+  const departmentId = Number(body.department_id);
   const indentNo = String(body.indent_no ?? "").trim();
   const itemType = body.item_type === "C" ? "C" : "N";
   const indentDate = String(body.indent_date ?? "").trim();
 
   if (!bookNo) return NextResponse.json({ success: false, message: "Book No is required" }, { status: 400 });
+  if (!departmentId)
+    return NextResponse.json({ success: false, message: "Department is required" }, { status: 400 });
   if (!indentNo) return NextResponse.json({ success: false, message: "Indent No is required" }, { status: 400 });
   if (!indentDate) return NextResponse.json({ success: false, message: "Date is required" }, { status: 400 });
 
@@ -65,7 +69,7 @@ export async function POST(req: NextRequest) {
           item_type: itemType,
           indent_date: indentDate,
           purpose: body.purpose?.trim() || null,
-          department_id: 1,
+          department_id: departmentId,
           institution_id: 1,
           created_by: session.id,
           status: "CREATED",
@@ -111,6 +115,7 @@ export async function PUT(req: NextRequest) {
   const body = (await req.json()) as {
     id?: number;
     book_no?: string | number;
+    department_id?: string | number;
     indent_no?: string;
     item_type?: string;
     indent_date?: string;
@@ -120,12 +125,15 @@ export async function PUT(req: NextRequest) {
 
   const id = Number(body.id);
   const bookNo = Number(body.book_no);
+  const departmentId = Number(body.department_id);
   const indentNo = String(body.indent_no ?? "").trim();
   const itemType = body.item_type === "C" ? "C" : "N";
   const indentDate = String(body.indent_date ?? "").trim();
 
   if (!id) return NextResponse.json({ success: false, message: "Indent id is required" }, { status: 400 });
   if (!bookNo) return NextResponse.json({ success: false, message: "Book No is required" }, { status: 400 });
+  if (!departmentId)
+    return NextResponse.json({ success: false, message: "Department is required" }, { status: 400 });
   if (!indentNo) return NextResponse.json({ success: false, message: "Indent No is required" }, { status: 400 });
   if (!indentDate) return NextResponse.json({ success: false, message: "Date is required" }, { status: 400 });
 
@@ -146,6 +154,7 @@ export async function PUT(req: NextRequest) {
           item_type: itemType,
           indent_date: indentDate,
           purpose: body.purpose?.trim() || null,
+          department_id: departmentId,
           updated_at: new Date(),
         })
         .where(eq(indentMasterT.id, id));

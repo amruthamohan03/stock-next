@@ -30,6 +30,7 @@
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
   --color-accent-fg: var(--accent-fg);
+  --color-on-accent: var(--on-accent);
 }
 
 /* ---- DARK (default) ---- */
@@ -44,6 +45,7 @@
   --accent: #818cf8;
   --accent-soft: rgba(129, 140, 248, 0.15);
   --accent-fg: #c7d2fe;
+  --on-accent: #ffffff;
   --ring: rgba(129, 140, 248, 0.35);
   --glow: rgba(99, 102, 241, 0.18);
   color-scheme: dark;
@@ -61,6 +63,7 @@
   --accent: #4f46e5;
   --accent-soft: #eef2ff;
   --accent-fg: #4338ca;
+  --on-accent: #ffffff;
   --ring: rgba(99, 102, 241, 0.3);
   --glow: rgba(99, 102, 241, 0.12);
   color-scheme: light;
@@ -118,6 +121,200 @@ body {
   background-image: linear-gradient(135deg, #06b6d4, #0891b2);
 }
 
+/* Solid accent fill with a little depth. The gradient is a progressive
+   enhancement: if color-mix is unsupported the flat background-color shows. */
+.bg-accent-grad {
+  background-color: var(--accent);
+  background-image: linear-gradient(
+    135deg,
+    var(--accent),
+    color-mix(in srgb, var(--accent) 72%, #1e1b4b)
+  );
+}
+
+@layer components {
+  /* ---- Buttons ------------------------------------------------------------
+     Filled tones carry three things that make a button read as a physical
+     control: a vertical gradient, a hair of light along the top edge, and a
+     shadow tinted with the button's own colour rather than flat black. The
+     lift on hover and the press on :active complete it.
+
+     Sizes and tones are separate classes so a variant can be used at any size.
+     Colours come from the accent token, so Application Settings reaches them. */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border: 1px solid transparent;
+    border-radius: 0.625rem;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+    user-select: none;
+    transition:
+      transform 0.15s ease,
+      box-shadow 0.2s ease,
+      background-color 0.2s ease,
+      border-color 0.2s ease,
+      color 0.2s ease,
+      filter 0.2s ease;
+  }
+  .btn:active {
+    transform: translateY(1px);
+  }
+  .btn:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent) 65%, transparent);
+    outline-offset: 2px;
+  }
+  .btn:disabled,
+  .btn[aria-disabled="true"] {
+    pointer-events: none;
+    opacity: 0.5;
+    box-shadow: none;
+    transform: none;
+  }
+
+  /* sizes */
+  .btn-sm {
+    height: 2rem;
+    padding: 0 0.75rem;
+    font-size: 0.75rem;
+  }
+  .btn-md {
+    height: 2.25rem;
+    padding: 0 1rem;
+    font-size: 0.875rem;
+  }
+  .btn-lg {
+    height: 2.5rem;
+    padding: 0 1.25rem;
+    font-size: 0.9375rem;
+  }
+  .btn-icon {
+    height: 2rem;
+    width: 2rem;
+    padding: 0;
+  }
+
+  /* filled tones */
+  .btn-primary,
+  .btn-danger {
+    color: #fff;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.2),
+      0 1px 2px rgb(2 6 23 / 0.35);
+  }
+  .btn-primary:hover,
+  .btn-danger:hover {
+    transform: translateY(-1px);
+  }
+  .btn-primary:active,
+  .btn-danger:active {
+    filter: brightness(0.94);
+  }
+
+  .btn-primary {
+    background-color: var(--accent);
+    background-image: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--accent) 86%, white),
+      var(--accent) 55%,
+      color-mix(in srgb, var(--accent) 86%, black)
+    );
+  }
+  .btn-primary:hover {
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.25),
+      0 8px 18px -8px color-mix(in srgb, var(--accent) 90%, transparent);
+  }
+
+  .btn-danger {
+    background-color: #dc2626;
+    background-image: linear-gradient(180deg, #f05252, #dc2626 55%, #b91c1c);
+  }
+  .btn-danger:hover {
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.25),
+      0 8px 18px -8px rgb(220 38 38 / 0.9);
+  }
+
+  /* quiet tones */
+  .btn-outline {
+    background: var(--card);
+    border-color: var(--line);
+    color: var(--fg);
+    box-shadow: 0 1px 2px rgb(2 6 23 / 0.18);
+  }
+  .btn-outline:hover {
+    transform: translateY(-1px);
+    background: var(--elevated);
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  }
+
+  .btn-secondary {
+    background: var(--elevated);
+    border-color: var(--line);
+    color: var(--fg);
+  }
+  .btn-secondary:hover {
+    transform: translateY(-1px);
+    background: var(--line);
+  }
+
+  .btn-ghost {
+    color: var(--muted);
+  }
+  .btn-ghost:hover {
+    background: var(--accent-soft);
+    color: var(--accent-fg);
+  }
+
+
+  /* ---- Shared list-table chrome -------------------------------------------
+     CrudTable and DataTable render the same kind of grid, so the look lives
+     here once instead of in two sets of class lists. */
+  .data-grid {
+    width: 100%;
+    font-size: 0.875rem;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  :where(.data-grid thead th) {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--elevated);
+    border-bottom: 1px solid var(--line);
+    padding: 0.75rem 1.25rem;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  :where(.data-grid tbody td) {
+    padding: 0.75rem 1.25rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+    vertical-align: middle;
+  }
+  :where(.data-grid tbody tr) {
+    transition: background-color 0.15s ease;
+  }
+  :where(.data-grid tbody tr:hover td) {
+    background: var(--accent-soft);
+  }
+  :where(.data-grid tbody tr:last-child td) {
+    border-bottom: 0;
+  }
+  /* Right-aligned numeric columns line up on the digits. */
+  .data-grid .num {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
 /* Refined scrollbars (theme-aware) */
 ::-webkit-scrollbar {
   width: 10px;
@@ -158,10 +355,20 @@ body {
   .no-print {
     display: none !important;
   }
+  /* Cards clip their children on screen so the rounded corners hold. Printing
+     pins .printable with position:absolute, and an overflow:hidden ancestor
+     would crop the sheet to the card's box — so cards open up for print. */
+  .shadow-card {
+    overflow: visible !important;
+  }
   /* Force light ink-on-paper regardless of the active theme */
   .printable {
     color: #111 !important;
     background: #fff !important;
+  }
+  :where(.data-grid thead th) {
+    position: static;
+    background: transparent;
   }
   .print-avoid-break {
     break-inside: avoid;

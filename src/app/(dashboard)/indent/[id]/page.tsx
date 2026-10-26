@@ -6,6 +6,7 @@ import {
   indentMasterT,
   indentItemT,
   departmentMasterT,
+  indentBookT,
   groupItemNameMasterT,
   itemMasterT,
   makeT,
@@ -31,6 +32,7 @@ export default async function IndentViewPage({
     .select({
       id: indentMasterT.id,
       book_no: indentMasterT.book_no,
+      book_name: indentBookT.book_name,
       indent_no: indentMasterT.indent_no,
       indent_date: indentMasterT.indent_date,
       purpose: indentMasterT.purpose,
@@ -43,6 +45,7 @@ export default async function IndentViewPage({
     })
     .from(indentMasterT)
     .leftJoin(departmentMasterT, eq(indentMasterT.department_id, departmentMasterT.id))
+    .leftJoin(indentBookT, eq(indentMasterT.book_no, indentBookT.id))
     .where(and(eq(indentMasterT.id, indentId), eq(indentMasterT.display, "Y")))
     .limit(1);
 
@@ -126,7 +129,7 @@ export default async function IndentViewPage({
 
         <CardContent className="space-y-5">
           <dl className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-3 lg:grid-cols-4">
-            {field("Book No", header.book_no)}
+            {field("Indent Book", header.book_name ?? `Book ${header.book_no}`)}
             {field("Indent No", header.indent_no)}
             {field("Date", formatDate(header.indent_date))}
             {field("Type", header.item_type === "C" ? "Consumable" : "Non-consumable")}
