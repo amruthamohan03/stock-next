@@ -39,6 +39,12 @@ const DIRECT: Record<string, string> = {
   "study-material": "/study-material",
   studymaterial: "/study-material",
   fdp: "/fdp",
+  location: "/location",
+  "location/index": "/location",
+  group: "/group",
+  "group/index": "/group",
+  "indent-book": "/indent-book",
+  "stock-book": "/stock-book",
   settings: "/settings",
   "application-settings": "/settings",
 };
@@ -77,6 +83,10 @@ export const IMPLEMENTED = new Set<string>([
   "/event",
   "/study-material",
   "/fdp",
+  "/location",
+  "/group",
+  "/indent-book",
+  "/stock-book",
   "/settings",
 ]);
 

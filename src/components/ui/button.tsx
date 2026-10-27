@@ -1,49 +1,46 @@
 import * as React from "react";
+import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Variant = "primary" | "secondary" | "danger" | "ghost" | "outline";
-type Size = "sm" | "md" | "icon";
+type Variant = "primary" | "secondary" | "danger" | "soft" | "ghost" | "outline";
+type Size = "sm" | "md" | "lg" | "icon";
 
-const variants: Record<Variant, string> = {
-  primary: "bg-brand-600 text-white shadow-sm hover:bg-brand-700 active:bg-brand-700",
-  secondary: "bg-elevated text-fg hover:bg-line",
-  danger: "bg-red-600 text-white shadow-sm hover:bg-red-700",
-  ghost: "text-muted hover:bg-elevated hover:text-fg",
-  outline: "border border-line bg-card text-fg shadow-sm hover:bg-elevated",
-};
-
-const sizes: Record<Size, string> = {
-  sm: "h-8 px-3 text-xs",
-  md: "h-9 px-4 text-sm",
-  icon: "h-8 w-8",
-};
-
-const base =
-  "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50";
-
-/** Button styling as a class string — reuse on links/anchors that should look
- *  like a button (avoids duplicating the class list). */
+/**
+ * The app's only button.
+ *
+ * The look lives in globals.css under `.btn` (gradient, inner highlight,
+ * coloured glow, hover lift) so links styled with buttonClasses() get exactly
+ * the same treatment, and so the filled tones can be built from the accent
+ * token — which means the colour chosen in Application Settings reaches every
+ * primary button in the app.
+ */
 export function buttonClasses({
   variant = "primary",
   size = "md",
   className,
 }: { variant?: Variant; size?: Size; className?: string } = {}) {
-  return cn(base, variants[variant], sizes[size], className);
+  return cn("btn", `btn-${variant}`, `btn-${size}`, className);
 }
 
-export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
   size?: Size;
+  /** Shows a spinner and blocks further clicks while a save is in flight. */
+  loading?: boolean;
 }
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = "primary", size = "md", ...props }, ref) => (
+  ({ className, variant = "primary", size = "md", loading, disabled, children, ...props }, ref) => (
     <button
       ref={ref}
       className={buttonClasses({ variant, size, className })}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
       {...props}
-    />
+    >
+      {loading && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+      {children}
+    </button>
   )
 );
 Button.displayName = "Button";

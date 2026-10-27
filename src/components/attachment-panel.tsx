@@ -163,7 +163,7 @@ export default function AttachmentPanel({
               onClick={() => setFilter("ALL")}
               className={`rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset transition-colors ${
                 filter === "ALL"
-                  ? "bg-accent text-accent-fg ring-transparent"
+                  ? "bg-accent-grad text-on-accent ring-transparent"
                   : "bg-elevated text-muted ring-line hover:text-fg"
               }`}
             >
@@ -176,7 +176,7 @@ export default function AttachmentPanel({
                 onClick={() => setFilter(c)}
                 className={`whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset transition-colors ${
                   filter === c
-                    ? "bg-accent text-accent-fg ring-transparent"
+                    ? "bg-accent-grad text-on-accent ring-transparent"
                     : `${CATEGORY_TINT[toCategory(c)]} hover:opacity-80`
                 }`}
               >

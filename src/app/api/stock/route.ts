@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { getSession } from "@/lib/session";
-import { stockTransactionT, stockBookT } from "@/db/schema";
+import { stockTransactionT, stockBookT, issuedToMasterT } from "@/db/schema";
 
 // Supported single-book transaction types. TRANSFER is intentionally out of
 // scope here (it is a two-book operation) — see the stock module notes.
@@ -11,6 +11,14 @@ const TYPES = new Set(["RECEIPT", "ISSUE", "ADJUSTMENT"]);
 type Body = {
   id?: number;
   stock_book_id?: string | number;
+  new_location_id?: string | number;
+  stock_book_master_id?: string | number;
+  stock_book_page_no?: string | number;
+  department_id?: string | number;
+  issued_to_location_id?: string | number;
+  no_indent_entry?: string;
+  indent_id?: string | number;
+  source?: string;
   transaction_type?: string;
   transaction_date?: string;
   qty?: string | number;
@@ -75,14 +83,86 @@ async function recompute(
     .where(eq(stockBookT.id, bookId));
 }
 
+/**
+ * The ledger row for an item at a location, created if this is the first entry
+ * for it. An item only ever gets one row per location, so a second entry for
+ * the same pair reuses it rather than splitting the running balance in two.
+ */
+async function ledgerRowFor(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  itemId: number,
+  locationId: number,
+  userId: number
+) {
+  const [location] = await tx
+    .select({ id: issuedToMasterT.id, name: issuedToMasterT.location_name })
+    .from(issuedToMasterT)
+    .where(eq(issuedToMasterT.id, locationId))
+    .limit(1);
+  if (!location) throw new Error("That location is not in the Location master");
+
+  const [existing] = await tx
+    .select({ id: stockBookT.id })
+    .from(stockBookT)
+    .where(
+      and(
+        eq(stockBookT.item_id, itemId),
+        eq(stockBookT.location_id, locationId),
+        eq(stockBookT.display, "Y")
+      )
+    )
+    .limit(1);
+  if (existing) return existing.id;
+
+  const [created] = await tx
+    .insert(stockBookT)
+    .values({
+      item_id: itemId,
+      location: location.name,
+      location_id: locationId,
+      opening_balance: 0,
+      current_balance: 0,
+      created_by: userId,
+      display: "Y",
+    })
+    .returning({ id: stockBookT.id });
+  return created.id;
+}
+
 /** Shared validation + coercion for create / update. */
 function parse(body: Body) {
-  const bookId = Number(body.stock_book_id);
+  // "book:3" is an existing ledger row, "item:109" an item whose ledger row has
+  // to be opened first. A bare number is still accepted for older callers.
+  const raw = String(body.stock_book_id ?? "").trim();
+  const asItem = /^item:(\d+)$/.exec(raw);
+  const bookId = asItem ? 0 : Number(raw.replace(/^book:/, ""));
+  const newItemId = asItem ? Number(asItem[1]) : 0;
+  const newLocationId = Number(body.new_location_id);
+  const departmentId = Number(body.department_id);
+  // Optional: the register master may be empty, and older entries predate it.
+  const registerId = Number(body.stock_book_master_id);
+  const pageNo = Number(body.stock_book_page_no);
+  // Optional, and only set on issues; cleared otherwise so a type change does
+  // not leave a stale destination behind.
+  const issuedTo = Number(body.issued_to_location_id);
+  const noIndent = body.no_indent_entry === "Y";
+  const indentId = Number(body.indent_id);
+  const hasIndent = !noIndent && Number.isInteger(indentId) && indentId > 0;
+
+  // "dept:3" / "loc:15" / "stock" — anything else is treated as no source.
+  const src = String(body.source ?? "").trim();
+  const srcMatch = /^(dept|loc):(\d+)$/.exec(src);
+  const srcId = srcMatch ? Number(srcMatch[2]) : 0;
+  const sourceType =
+    src === "stock" ? "STOCK" : srcMatch?.[1] === "dept" ? "DEPARTMENT" : srcMatch?.[1] === "loc" ? "LOCATION" : null;
   const type = String(body.transaction_type ?? "").trim().toUpperCase();
   const date = String(body.transaction_date ?? "").trim();
   const qty = Number(body.qty);
 
-  if (!Number.isInteger(bookId) || bookId <= 0) return { error: "Select a stock book" };
+  if (!newItemId && (!Number.isInteger(bookId) || bookId <= 0)) return { error: "Select an item" };
+  if (newItemId && (!Number.isInteger(newLocationId) || newLocationId <= 0))
+    return { error: "Choose where this item is kept — it has no stock book yet" };
+  if (!Number.isInteger(departmentId) || departmentId <= 0) return { error: "Select a department" };
   if (!TYPES.has(type)) return { error: "Choose a valid transaction type" };
   if (!date) return { error: "Transaction date is required" };
   if (Number.isNaN(qty) || qty === 0) return { error: "Enter a non-zero quantity" };
@@ -91,8 +171,21 @@ function parse(body: Body) {
   const { receipt, issue } = splitQty(type, qty);
   return {
     bookId,
+    newItemId,
+    newLocationId,
     values: {
-      stock_book_id: bookId,
+      stock_book_master_id: Number.isInteger(registerId) && registerId > 0 ? registerId : null,
+      stock_book_page_no: Number.isInteger(pageNo) && pageNo > 0 ? pageNo : null,
+      issued_to_location_id:
+        type === "ISSUE" && Number.isInteger(issuedTo) && issuedTo > 0 ? issuedTo : null,
+      no_indent_entry: noIndent ? "Y" : "N",
+      indent_id: hasIndent ? indentId : null,
+      // The entry type follows the indent link rather than being set by hand.
+      stock_entry_type: hasIndent ? "INDENT_BASED" : "MANUAL",
+      source_type: sourceType,
+      transferred_from_department_id: sourceType === "DEPARTMENT" ? srcId : null,
+      transferred_from_location_id: sourceType === "LOCATION" ? srcId : null,
+      department_id: departmentId,
       transaction_type: type,
       transaction_date: date,
       receipt_qty: receipt,
@@ -118,19 +211,21 @@ export async function POST(req: NextRequest) {
 
   try {
     const id = await db.transaction(async (tx) => {
+      const bookId = parsed.newItemId
+        ? await ledgerRowFor(tx, parsed.newItemId, parsed.newLocationId, session.id)
+        : parsed.bookId;
       const [row] = await tx
         .insert(stockTransactionT)
         .values({
           ...parsed.values,
+          stock_book_id: bookId,
           institution_id: 1,
-          department_id: 1,
-          stock_entry_type: "MANUAL",
           balance_qty: 0, // recompute() fills the real figure below
           created_by: session.id,
           display: "Y",
         })
         .returning({ id: stockTransactionT.id });
-      await recompute(tx, parsed.bookId);
+      await recompute(tx, bookId);
       return row.id;
     });
     return NextResponse.json({ success: true, message: "Stock transaction saved", id });
@@ -160,14 +255,23 @@ export async function PUT(req: NextRequest) {
         .limit(1);
       if (!existing) throw new Error("Transaction not found");
 
+      const bookId = parsed.newItemId
+        ? await ledgerRowFor(tx, parsed.newItemId, parsed.newLocationId, session.id)
+        : parsed.bookId;
+
       await tx
         .update(stockTransactionT)
-        .set({ ...parsed.values, updated_by: session.id, updated_at: new Date() })
+        .set({
+          ...parsed.values,
+          stock_book_id: bookId,
+          updated_by: session.id,
+          updated_at: new Date(),
+        })
         .where(eq(stockTransactionT.id, id));
 
       // Recompute the destination book and, if it moved, the source book too.
-      await recompute(tx, parsed.bookId);
-      if (existing.stock_book_id !== parsed.bookId) await recompute(tx, existing.stock_book_id);
+      await recompute(tx, bookId);
+      if (existing.stock_book_id !== bookId) await recompute(tx, existing.stock_book_id);
     });
     return NextResponse.json({ success: true, message: "Stock transaction updated", id });
   } catch (e) {

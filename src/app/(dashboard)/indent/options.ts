@@ -5,11 +5,14 @@ import {
   itemMasterT,
   makeT,
   modelT,
+  indentBookT,
+  stockBookMasterT,
+  departmentMasterT,
 } from "@/db/schema";
 
 /** Dropdown options shared by the create and edit indent pages. */
 export async function getIndentOptions() {
-  const [groups, items, makes, models] = await Promise.all([
+  const [groups, items, makes, models, books, departments, stockBooks] = await Promise.all([
     db
       .select({ id: groupItemNameMasterT.id, name: groupItemNameMasterT.group_name })
       .from(groupItemNameMasterT)
@@ -30,6 +33,32 @@ export async function getIndentOptions() {
       .from(modelT)
       .where(eq(modelT.display, "Y"))
       .orderBy(asc(modelT.model_name)),
+    db
+      .select({
+        id: indentBookT.id,
+        name: indentBookT.book_name,
+        book_no: indentBookT.book_no,
+        volume: indentBookT.volume,
+      })
+      .from(indentBookT)
+      .where(eq(indentBookT.display, "Y"))
+      .orderBy(asc(indentBookT.book_name)),
+    db
+      .select({ id: departmentMasterT.id, name: departmentMasterT.department_name })
+      .from(departmentMasterT)
+      .where(eq(departmentMasterT.display, "Y"))
+      .orderBy(asc(departmentMasterT.department_name)),
+    // The registers an indent line can be written into, for the per-item picker.
+    db
+      .select({
+        id: stockBookMasterT.id,
+        name: stockBookMasterT.book_name,
+        book_no: stockBookMasterT.book_no,
+        volume: stockBookMasterT.volume,
+      })
+      .from(stockBookMasterT)
+      .where(eq(stockBookMasterT.display, "Y"))
+      .orderBy(asc(stockBookMasterT.book_name)),
   ]);
-  return { groups, items, makes, models };
+  return { groups, items, makes, models, books, departments, stockBooks };
 }

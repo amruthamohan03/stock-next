@@ -38,7 +38,11 @@ function buildValues(cfg: MasterConfig, body: Record<string, unknown>) {
     }
 
     if (v === "" || v === undefined) {
-      values[field] = isNum ? 0 : null;
+      // A blank number is 0 by default (flags, counters that start at zero);
+      // columns listed in nullWhenBlank are ids, where 0 would be a row that
+      // does not exist.
+      const nullable = cfg.nullWhenBlank?.includes(field) ?? false;
+      values[field] = isNum && !nullable ? 0 : null;
     } else {
       values[field] = isNum ? Number(v) : v;
     }

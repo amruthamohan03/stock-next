@@ -1,4 +1,4 @@
-import { aliasedTable, asc, desc, eq, sql } from "drizzle-orm";
+import { aliasedTable, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
   stockTransactionT,
@@ -7,21 +7,12 @@ import {
   issuedToMasterT,
 } from "@/db/schema";
 import StockTable from "./stock-table";
+import { getStockOptions } from "./options";
 import StockForm from "./stock-form";
 
 export default async function StockLedgerPage() {
   const toLoc = aliasedTable(issuedToMasterT, "to_loc");
   const fromLoc = aliasedTable(issuedToMasterT, "from_loc");
-
-  const stockBooksPromise = db
-    .select({
-      id: stockBookT.id,
-      name: sql<string>`concat(coalesce(${itemMasterT.item_name}, 'Item ' || ${stockBookT.item_id}), ' — ', ${stockBookT.location})`,
-    })
-    .from(stockBookT)
-    .leftJoin(itemMasterT, eq(stockBookT.item_id, itemMasterT.id))
-    .where(eq(stockBookT.display, "Y"))
-    .orderBy(asc(itemMasterT.item_name));
 
   const rowsPromise = db
     .select({
@@ -50,11 +41,22 @@ export default async function StockLedgerPage() {
     .orderBy(desc(stockTransactionT.transaction_date), desc(stockTransactionT.id))
     .limit(500);
 
-  const [rows, stockBooks] = await Promise.all([rowsPromise, stockBooksPromise]);
+  const [rows, { stockBooks, departments, registers, locations, indentBooks, indents }] =
+    await Promise.all([
+    rowsPromise,
+    getStockOptions(),
+  ]);
 
   return (
     <div className="space-y-6">
-      <StockForm stockBooks={stockBooks} />
+      <StockForm
+        stockBooks={stockBooks}
+        departments={departments}
+        registers={registers}
+        locations={locations}
+        indentBooks={indentBooks}
+        indents={indents}
+      />
       <StockTable rows={rows} />
     </div>
   );

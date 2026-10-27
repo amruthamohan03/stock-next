@@ -77,12 +77,64 @@ export function hexToRgb(hex: string): string | null {
  * Every value passes through `toHexColor` first, so only a hex literal can
  * ever reach the stylesheet.
  */
+/** WCAG relative luminance of a hex colour, 0 (black) to 1 (white). */
+export function luminance(hex: string): number | null {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return null;
+  const [r, g, b] = rgb.split(" ").map((v) => {
+    const c = Number(v) / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** Contrast ratio between a colour and white, the text colour on filled buttons. */
+export function contrastWithWhite(hex: string): number | null {
+  const l = luminance(hex);
+  return l === null ? null : 1.05 / (l + 0.05);
+}
+
+/** Mix a hex colour with black. `amount` 0 = unchanged, 1 = black. */
+function darken(hex: string, amount: number): string {
+  const v = toHexColor(hex);
+  if (!v) return hex;
+  const ch = [1, 3, 5]
+    .map((i) => Math.round(parseInt(v.slice(i, i + 2), 16) * (1 - amount)))
+    .map((n) => Math.max(0, Math.min(255, n)).toString(16).padStart(2, "0"));
+  return `#${ch.join("")}`;
+}
+
+/**
+ * The accent to use on the light theme.
+ *
+ * A colour picked while the app is in dark mode is usually a pale one — it has
+ * to sit on a near-black surface. The same value on a white page gives washed
+ * out buttons with unreadable white labels, so it is darkened just far enough
+ * to carry white text (4:1, between WCAG AA for large and normal text).
+ * A colour that already passes is returned untouched.
+ */
+export function accentForLight(hex: string): string {
+  const v = toHexColor(hex);
+  if (!v) return hex;
+  for (let step = 0; step <= 6; step++) {
+    const candidate = step === 0 ? v : darken(v, step * 0.1);
+    const ratio = contrastWithWhite(candidate);
+    if (ratio !== null && ratio >= 4) return candidate;
+  }
+  return darken(v, 0.6);
+}
+
 export function paletteCss(s: AppSettings): string {
   const rules: string[] = [];
   const accent = toHexColor(s.accent_color);
   const accentFg = toHexColor(s.accent_fg_color);
   const sidebarBg = toHexColor(s.sidebar_bg);
   const sidebarText = toHexColor(s.sidebar_text);
+
+  // The light theme needs its own block: these rules land after the
+  // stylesheet, so a bare :root would override [data-theme="light"] and leave
+  // a dark-mode accent washed out on a white page.
+  const light: string[] = [];
 
   if (accent) {
     const rgb = hexToRgb(accent);
@@ -91,10 +143,24 @@ export function paletteCss(s: AppSettings): string {
       rules.push(`--accent-soft:rgb(${rgb} / 0.15)`);
       rules.push(`--ring:rgb(${rgb} / 0.35)`);
     }
+
+    const lightAccent = accentForLight(accent);
+    const lightRgb = hexToRgb(lightAccent);
+    light.push(`--accent:${lightAccent}`);
+    if (lightRgb) {
+      light.push(`--accent-soft:rgb(${lightRgb} / 0.12)`);
+      light.push(`--ring:rgb(${lightRgb} / 0.35)`);
+    }
   }
-  if (accentFg) rules.push(`--accent-fg:${accentFg}`);
+  if (accentFg) {
+    rules.push(`--accent-fg:${accentFg}`);
+    // Accent text sits on the soft tint, so it needs the same correction.
+    light.push(`--accent-fg:${accentForLight(accentFg)}`);
+  }
   if (sidebarBg) rules.push(`--sidebar-bg:${sidebarBg}`);
   if (sidebarText) rules.push(`--sidebar-text:${sidebarText}`);
 
-  return rules.length ? `:root{${rules.join(";")}}` : "";
+  if (rules.length === 0) return "";
+  const dark = `:root{${rules.join(";")}}`;
+  return light.length ? `${dark}[data-theme="light"]{${light.join(";")}}` : dark;
 }

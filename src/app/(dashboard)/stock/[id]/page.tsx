@@ -5,6 +5,8 @@ import { db } from "@/db";
 import {
   stockTransactionT,
   stockBookT,
+  stockBookMasterT,
+  departmentMasterT,
   itemMasterT,
   issuedToMasterT,
   indentMasterT,
@@ -43,6 +45,12 @@ export default async function StockTransactionPage({
       item_type: stockTransactionT.item_type,
       item_category: stockTransactionT.item_category,
       book_volume: stockTransactionT.book_volume,
+      register_name: stockBookMasterT.book_name,
+      no_indent_entry: stockTransactionT.no_indent_entry,
+      source_type: stockTransactionT.source_type,
+      source_dept: departmentMasterT.department_name,
+      register_no: stockBookMasterT.book_no,
+      stock_book_page_no: stockTransactionT.stock_book_page_no,
       voucher_no: stockTransactionT.voucher_no,
       voucher_date: stockTransactionT.voucher_date,
       receipt_qty: stockTransactionT.receipt_qty,
@@ -66,6 +74,11 @@ export default async function StockTransactionPage({
     })
     .from(stockTransactionT)
     .leftJoin(stockBookT, eq(stockTransactionT.stock_book_id, stockBookT.id))
+    .leftJoin(stockBookMasterT, eq(stockTransactionT.stock_book_master_id, stockBookMasterT.id))
+    .leftJoin(
+      departmentMasterT,
+      eq(stockTransactionT.transferred_from_department_id, departmentMasterT.id)
+    )
     .leftJoin(itemMasterT, eq(stockBookT.item_id, itemMasterT.id))
     .leftJoin(toLoc, eq(stockTransactionT.issued_to_location_id, toLoc.id))
     .leftJoin(fromLoc, eq(stockTransactionT.transferred_from_location_id, fromLoc.id))
@@ -144,10 +157,19 @@ export default async function StockTransactionPage({
             {field("Date", formatDate(txn.transaction_date))}
             {field("Type", typeBadge)}
             {field("Entry Type", txn.stock_entry_type)}
+            {field("Indent", txn.no_indent_entry === "Y" ? "No indent entry" : null)}
             {field("Item", txn.item_name)}
             {field("Item Type", txn.item_type)}
             {field("Category", txn.item_category)}
             {field("Location", txn.location)}
+            {field(
+              "Stock Book",
+              txn.register_name
+                ? `${txn.register_name}${txn.register_no ? ` (Book ${txn.register_no})` : ""}${
+                    txn.stock_book_page_no ? ` · p.${txn.stock_book_page_no}` : ""
+                  }`
+                : null
+            )}
             {field("Book Volume", txn.book_volume)}
             {field("Voucher No", txn.voucher_no)}
             {field("Voucher Date", txn.voucher_date ? formatDate(txn.voucher_date) : null)}
@@ -166,7 +188,16 @@ export default async function StockTransactionPage({
             {field("Brought Forward", txn.brought_forward || null)}
             {field("Carried Over", txn.carried_over || null)}
             {field("To", txn.to_name)}
-            {field("From", txn.from_name)}
+            {field(
+              "Transferred From",
+              txn.source_type === "STOCK"
+                ? "Stock · main store"
+                : txn.source_dept
+                  ? `Department · ${txn.source_dept}`
+                  : txn.from_name
+                    ? `Location · ${txn.from_name}`
+                    : null
+            )}
             {field("Make", txn.make)}
             {field("Model", txn.model)}
             {field("Serial No", txn.serial_no)}

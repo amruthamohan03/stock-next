@@ -1,11 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { eq } from "drizzle-orm";
+import { eq, asc } from "drizzle-orm";
 import { db } from "@/db";
 import { getSession } from "@/lib/session";
 import { indentMasterT, indentItemT } from "@/db/schema";
 
 // Create a new indent (header + line items) — ports the PHP IndentController save.
 type ItemPayload = {
+  stock_book_master_id?: string | number;
   group_id?: string | number;
   item_id?: string | number;
   make_id?: string | number;
@@ -31,6 +32,8 @@ export async function POST(req: NextRequest) {
 
   const body = (await req.json()) as {
     book_no?: string | number;
+    department_id?: string | number;
+    no_stock_entry?: string;
     indent_no?: string;
     item_type?: string;
     indent_date?: string;
@@ -39,11 +42,15 @@ export async function POST(req: NextRequest) {
   };
 
   const bookNo = Number(body.book_no);
+  const departmentId = Number(body.department_id);
+  const noStockEntry = body.no_stock_entry === "Y" ? "Y" : "N";
   const indentNo = String(body.indent_no ?? "").trim();
   const itemType = body.item_type === "C" ? "C" : "N";
   const indentDate = String(body.indent_date ?? "").trim();
 
   if (!bookNo) return NextResponse.json({ success: false, message: "Book No is required" }, { status: 400 });
+  if (!departmentId)
+    return NextResponse.json({ success: false, message: "Department is required" }, { status: 400 });
   if (!indentNo) return NextResponse.json({ success: false, message: "Indent No is required" }, { status: 400 });
   if (!indentDate) return NextResponse.json({ success: false, message: "Date is required" }, { status: 400 });
 
@@ -65,7 +72,8 @@ export async function POST(req: NextRequest) {
           item_type: itemType,
           indent_date: indentDate,
           purpose: body.purpose?.trim() || null,
-          department_id: 1,
+          department_id: departmentId,
+          no_stock_entry: noStockEntry,
           institution_id: 1,
           created_by: session.id,
           status: "CREATED",
@@ -85,6 +93,7 @@ export async function POST(req: NextRequest) {
           item_purpose: it.purpose?.trim() || null,
           qty_intended: Number(it.qty) || 0,
           remarks: it.remarks?.trim() || null,
+          stock_book_master_id: numOrNull(it.stock_book_master_id),
           stock_book_page_no: numOrNull(it.sb_page),
           stock_book_volume: numOrNull(it.sb_vol),
           day_book_page_no: numOrNull(it.db_page),
@@ -111,6 +120,8 @@ export async function PUT(req: NextRequest) {
   const body = (await req.json()) as {
     id?: number;
     book_no?: string | number;
+    department_id?: string | number;
+    no_stock_entry?: string;
     indent_no?: string;
     item_type?: string;
     indent_date?: string;
@@ -120,12 +131,16 @@ export async function PUT(req: NextRequest) {
 
   const id = Number(body.id);
   const bookNo = Number(body.book_no);
+  const departmentId = Number(body.department_id);
+  const noStockEntry = body.no_stock_entry === "Y" ? "Y" : "N";
   const indentNo = String(body.indent_no ?? "").trim();
   const itemType = body.item_type === "C" ? "C" : "N";
   const indentDate = String(body.indent_date ?? "").trim();
 
   if (!id) return NextResponse.json({ success: false, message: "Indent id is required" }, { status: 400 });
   if (!bookNo) return NextResponse.json({ success: false, message: "Book No is required" }, { status: 400 });
+  if (!departmentId)
+    return NextResponse.json({ success: false, message: "Department is required" }, { status: 400 });
   if (!indentNo) return NextResponse.json({ success: false, message: "Indent No is required" }, { status: 400 });
   if (!indentDate) return NextResponse.json({ success: false, message: "Date is required" }, { status: 400 });
 
@@ -146,31 +161,64 @@ export async function PUT(req: NextRequest) {
           item_type: itemType,
           indent_date: indentDate,
           purpose: body.purpose?.trim() || null,
+          department_id: departmentId,
+          no_stock_entry: noStockEntry,
           updated_at: new Date(),
         })
         .where(eq(indentMasterT.id, id));
 
+      // The form only edits the intended quantity, so the passed and issued
+      // figures have to survive the replace below — they are the record of
+      // what the store actually handed over, and re-inserting without them
+      // silently reset them to zero.
+      const previous = await tx
+        .select({
+          item_id: indentItemT.item_id,
+          qty_passed: indentItemT.qty_passed,
+          qty_issued: indentItemT.qty_issued,
+        })
+        .from(indentItemT)
+        .where(eq(indentItemT.indent_id, id))
+        .orderBy(asc(indentItemT.sl_no));
+
+      // Matched by item, oldest row first, so reordering or removing a line
+      // does not shuffle one line's figures onto another.
+      const carried = new Map<number, { qty_passed: number; qty_issued: number }[]>();
+      for (const row of previous) {
+        const list = carried.get(row.item_id) ?? [];
+        list.push({ qty_passed: row.qty_passed ?? 0, qty_issued: row.qty_issued ?? 0 });
+        carried.set(row.item_id, list);
+      }
+      const carryFor = (itemId: number) => carried.get(itemId)?.shift() ?? { qty_passed: 0, qty_issued: 0 };
+
       // Replace line items with the submitted set.
       await tx.delete(indentItemT).where(eq(indentItemT.indent_id, id));
       await tx.insert(indentItemT).values(
-        items.map((it, i) => ({
+        items.map((it, i) => {
+          const itemId = Number(it.item_id);
+          const kept = carryFor(itemId);
+          return {
           indent_id: id,
           sl_no: i + 1,
-          item_id: Number(it.item_id),
+          item_id: itemId,
           group_id: numOrNull(it.group_id),
           make_id: numOrNull(it.make_id),
           model_id: numOrNull(it.model_id),
           item_description: it.description?.trim() || null,
           item_purpose: it.purpose?.trim() || null,
           qty_intended: Number(it.qty) || 0,
+          qty_passed: kept.qty_passed,
+          qty_issued: kept.qty_issued,
           remarks: it.remarks?.trim() || null,
+          stock_book_master_id: numOrNull(it.stock_book_master_id),
           stock_book_page_no: numOrNull(it.sb_page),
           stock_book_volume: numOrNull(it.sb_vol),
           day_book_page_no: numOrNull(it.db_page),
           day_book_volume: numOrNull(it.db_vol),
           display: "Y",
           status_id: 1,
-        }))
+          };
+        })
       );
     });
 

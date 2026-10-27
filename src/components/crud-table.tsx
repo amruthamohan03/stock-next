@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Inbox } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -10,16 +10,27 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Pagination } from "@/components/ui/pagination";
 import { Modal } from "@/components/ui/modal";
 import { TableAction, TableActions } from "@/components/ui/table-action";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm";
 import { apiDelete, apiRequest } from "@/lib/api-client";
+import { csvParts, toggleCsv } from "@/lib/csv-values";
 
 const PAGE_SIZE = 10;
 
 export type FieldDef = {
   name: string;
   label: string;
-  type?: "text" | "number" | "textarea" | "select" | "password" | "email" | "date";
+  /** "multiselect" stores the chosen option values comma separated in one column. */
+  type?:
+    | "text"
+    | "number"
+    | "textarea"
+    | "select"
+    | "multiselect"
+    | "password"
+    | "email"
+    | "date";
   required?: boolean;
   options?: { value: string | number; label: string }[];
   default?: string | number;
@@ -151,33 +162,41 @@ export default function CrudTable({
       </CardHeader>
       <CardContent className="p-0">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="data-grid">
             <thead>
-              <tr className="border-b border-line bg-elevated text-left text-[11px] uppercase tracking-wider text-muted">
-                <th className="px-5 py-3 font-semibold">#</th>
+              <tr>
+                <th className="w-12">#</th>
                 {columns.map((c) => (
-                  <th key={c.key} className="px-5 py-3 font-semibold">
-                    {c.label}
-                  </th>
+                  <th key={c.key}>{c.label}</th>
                 ))}
-                <th className="px-5 py-3 text-right font-semibold">Actions</th>
+                <th className="text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {pageRows.length === 0 && (
                 <tr>
-                  <td colSpan={columns.length + 2} className="px-5 py-8 text-center text-faint">
-                    No records found.
+                  <td colSpan={columns.length + 2}>
+                    <div className="flex flex-col items-center gap-2 py-10 text-center">
+                      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-elevated text-faint ring-1 ring-line">
+                        <Inbox className="h-5 w-5" />
+                      </span>
+                      <p className="text-sm font-medium text-muted">
+                        {search ? "No matches for this search." : "Nothing here yet."}
+                      </p>
+                      <p className="text-xs text-faint">
+                        {search
+                          ? "Try a different term."
+                          : "Use the Add button to create the first record."}
+                      </p>
+                    </div>
                   </td>
                 </tr>
               )}
               {pageRows.map((row, i) => (
-                <tr key={String(row.id)} className="border-b border-line/60 transition-colors hover:bg-accent-soft/50">
-                  <td className="px-5 py-3 text-faint">
-                    {(current - 1) * PAGE_SIZE + i + 1}
-                  </td>
+                <tr key={String(row.id)}>
+                  <td className="num text-faint">{(current - 1) * PAGE_SIZE + i + 1}</td>
                   {columns.map((c) => (
-                    <td key={c.key} className="px-5 py-3 text-fg">
+                    <td key={c.key} className="text-fg">
                       {c.badge ? (
                         <Badge value={String(row[c.key] ?? "")} />
                       ) : (
@@ -185,7 +204,7 @@ export default function CrudTable({
                       )}
                     </td>
                   ))}
-                  <td className="px-5 py-3">
+                  <td>
                     <TableActions>
                       <TableAction tone="edit" icon={Pencil} onClick={() => openEdit(row)} title="Edit" />
                       <TableAction tone="delete" icon={Trash2} onClick={() => remove(row)} title="Delete" />
@@ -218,7 +237,10 @@ export default function CrudTable({
           )}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {fields.map((f) => (
-            <div key={f.name} className={f.type === "textarea" ? "sm:col-span-2" : ""}>
+            <div
+              key={f.name}
+              className={f.type === "textarea" || f.type === "multiselect" ? "sm:col-span-2" : ""}
+            >
               <Label htmlFor={f.name}>
                 {f.label}
                 {f.required && <span className="text-red-500"> *</span>}
@@ -228,14 +250,35 @@ export default function CrudTable({
                   id={f.name}
                   value={form[f.name] ?? ""}
                   options={f.options ?? []}
-                  onChange={(v) => setForm({ ...form, [f.name]: v })}
+                  onChange={(v) => setForm((prev) => ({ ...prev, [f.name]: v }))}
+                />
+              ) : f.type === "multiselect" ? (
+                <MultiSelect
+                  value={form[f.name] ?? ""}
+                  options={f.options ?? []}
+                  onToggle={(v) =>
+                    setForm((prev) =>
+                      // Chips are clicked in quick succession, so this must
+                      // start from the latest value, not the rendered one.
+                      ({
+                        ...prev,
+                        [f.name]: toggleCsv(
+                          prev[f.name] ?? "",
+                          v,
+                          (f.options ?? []).map((o) => String(o.value))
+                        ),
+                      })
+                    )
+                  }
                 />
               ) : f.type === "textarea" ? (
                 <textarea
                   id={f.name}
                   value={form[f.name] ?? ""}
                   required={f.required}
-                  onChange={(e) => setForm({ ...form, [f.name]: e.target.value })}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, [f.name]: e.target.value }))
+                  }
                   className="w-full rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-fg shadow-sm transition-colors placeholder:text-faint focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
                   rows={3}
                 />
@@ -256,7 +299,9 @@ export default function CrudTable({
                   placeholder={f.placeholder}
                   value={form[f.name] ?? ""}
                   required={f.required}
-                  onChange={(e) => setForm({ ...form, [f.name]: e.target.value })}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, [f.name]: e.target.value }))
+                  }
                 />
               )}
             </div>
@@ -266,7 +311,7 @@ export default function CrudTable({
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={saving}>
+            <Button type="submit" loading={saving}>
               {saving ? "Saving…" : "Save"}
             </Button>
           </div>
@@ -276,36 +321,50 @@ export default function CrudTable({
   );
 }
 
-function Badge({ value }: { value: string }) {
-  const v = value.toUpperCase();
-  const map: Record<string, string> = {
-    Y: "bg-emerald-500/15 text-emerald-500 ring-emerald-500/25",
-    N: "bg-slate-500/15 text-slate-400 ring-slate-500/25",
-    C: "bg-brand-500/15 text-brand-400 ring-brand-500/25",
-    PUBLIC: "bg-indigo-500/15 text-indigo-400 ring-indigo-500/25",
-    PRIVATE: "bg-amber-500/15 text-amber-500 ring-amber-500/25",
-    PERMANENT: "bg-emerald-500/15 text-emerald-500 ring-emerald-500/25",
-    GUEST: "bg-amber-500/15 text-amber-500 ring-amber-500/25",
-    TEACHING: "bg-brand-500/15 text-brand-400 ring-brand-500/25",
-    NON_TEACHING: "bg-slate-500/15 text-slate-400 ring-slate-500/25",
-    FACULTY: "bg-brand-500/15 text-brand-400 ring-brand-500/25",
-    LAB_STAFF: "bg-cyan-500/15 text-cyan-500 ring-cyan-500/25",
-    OFFICE_STAFF: "bg-violet-500/15 text-violet-400 ring-violet-500/25",
-    OTHER: "bg-slate-500/15 text-slate-400 ring-slate-500/25",
-  };
-  // Show a readable label for coded values (LAB_STAFF → "Lab Staff"); keep short
-  // codes like Y/N as-is.
-  const label =
-    value.length <= 2
-      ? value
-      : value.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+/**
+ * Pick several options, stored as one comma-separated string.
+ *
+ * Toggle chips rather than a native multiple <select>, which cannot be themed
+ * and needs ctrl-click to work. The chip only reports which option was hit;
+ * the caller folds it into the stored value with `toggleCsv`, so two quick
+ * clicks in one render batch cannot lose each other.
+ */
+function MultiSelect({
+  value,
+  options,
+  onToggle,
+}: {
+  value: string;
+  options: { value: string | number; label: string }[];
+  onToggle: (optionValue: string) => void;
+}) {
+  const chosen = csvParts(value);
+
+  if (options.length === 0) {
+    return <p className="py-1.5 text-sm text-faint">Nothing to choose from.</p>;
+  }
+
   return (
-    <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${
-        map[v] ?? "bg-slate-500/15 text-muted ring-slate-500/25"
-      }`}
-    >
-      {label || "—"}
-    </span>
+    <div className="flex flex-wrap gap-1.5 py-1">
+      {options.map((o) => {
+        const v = String(o.value);
+        const on = chosen.includes(v);
+        return (
+          <button
+            key={v}
+            type="button"
+            aria-pressed={on}
+            onClick={() => onToggle(v)}
+            className={`rounded-full px-3 py-1 text-xs font-medium ring-1 transition-colors ${
+              on
+                ? "bg-accent-soft text-accent-fg ring-accent/40"
+                : "bg-elevated text-muted ring-line hover:text-fg"
+            }`}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }

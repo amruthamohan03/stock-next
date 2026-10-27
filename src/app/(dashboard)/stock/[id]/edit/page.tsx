@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { stockTransactionT, stockBookT, itemMasterT } from "@/db/schema";
+import { stockTransactionT } from "@/db/schema";
 import StockForm, { type StockInitial } from "../../stock-form";
+import { getStockOptions } from "../../options";
 
 const iso = (d: string | Date | null | undefined) => {
   if (!d) return "";
@@ -26,15 +27,8 @@ export default async function StockEditPage({
     .limit(1);
   if (!txn) notFound();
 
-  const stockBooks = await db
-    .select({
-      id: stockBookT.id,
-      name: sql<string>`concat(coalesce(${itemMasterT.item_name}, 'Item ' || ${stockBookT.item_id}), ' — ', ${stockBookT.location})`,
-    })
-    .from(stockBookT)
-    .leftJoin(itemMasterT, eq(stockBookT.item_id, itemMasterT.id))
-    .where(eq(stockBookT.display, "Y"))
-    .orderBy(asc(itemMasterT.item_name));
+  const { stockBooks, departments, registers, locations, indentBooks, indents } =
+    await getStockOptions();
 
   // Reconstruct the quantity the form works with from the stored columns.
   // Receipt/Issue use a positive number; only Adjustment is signed.
@@ -48,7 +42,24 @@ export default async function StockEditPage({
 
   const initial: StockInitial = {
     id: txn.id,
-    stock_book_id: String(txn.stock_book_id),
+    stock_book_id: `book:${txn.stock_book_id}`,
+    stock_book_master_id: txn.stock_book_master_id ? String(txn.stock_book_master_id) : "",
+    stock_book_page_no: txn.stock_book_page_no ? String(txn.stock_book_page_no) : "",
+    issued_to_location_id: txn.issued_to_location_id ? String(txn.issued_to_location_id) : "",
+    no_indent_entry: txn.no_indent_entry === "Y" ? "Y" : "N",
+    indent_id: txn.indent_id ? String(txn.indent_id) : "",
+    // Rebuilt from the stored type + id, the same encoding the form sends.
+    source:
+      txn.source_type === "STOCK"
+        ? "stock"
+        : txn.source_type === "DEPARTMENT" && txn.transferred_from_department_id
+          ? `dept:${txn.transferred_from_department_id}`
+          : txn.source_type === "LOCATION" && txn.transferred_from_location_id
+            ? `loc:${txn.transferred_from_location_id}`
+            : txn.transferred_from_location_id
+              ? `loc:${txn.transferred_from_location_id}`
+              : "",
+    department_id: txn.department_id ? String(txn.department_id) : "",
     transaction_type: type,
     transaction_date: iso(txn.transaction_date),
     qty: String(qty),
@@ -64,7 +75,15 @@ export default async function StockEditPage({
 
   return (
     <div className="space-y-6">
-      <StockForm stockBooks={stockBooks} initial={initial} />
+      <StockForm
+        stockBooks={stockBooks}
+        departments={departments}
+        registers={registers}
+        locations={locations}
+        indentBooks={indentBooks}
+        indents={indents}
+        initial={initial}
+      />
     </div>
   );
 }

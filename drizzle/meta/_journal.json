@@ -43,6 +43,41 @@
       "when": 1791871734193,
       "tag": "0005_lethal_wiccan",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793001290598,
+      "tag": "0006_funny_ben_urich",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793003274676,
+      "tag": "0007_strong_hulk",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793081523505,
+      "tag": "0008_blue_brood",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793092159814,
+      "tag": "0009_tearful_tigra",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793094307593,
+      "tag": "0010_jazzy_venom",
+      "breakpoints": true
     }
   ]
 }

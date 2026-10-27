@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
+import { Inbox } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Pagination } from "@/components/ui/pagination";
@@ -87,19 +88,11 @@ export default function DataTable<T extends { id: number | string }>({
       </CardHeader>
       <CardContent className="p-0">
         <div className="overflow-x-auto">
-          <table
-            className="w-full text-sm"
-            style={minWidth ? { minWidth } : undefined}
-          >
+          <table className="data-grid" style={minWidth ? { minWidth } : undefined}>
             <thead>
-              <tr className="border-b border-line bg-elevated text-left text-[11px] uppercase tracking-wider text-muted">
+              <tr>
                 {columns.map((c) => (
-                  <th
-                    key={c.key}
-                    className={`px-4 py-3 font-semibold ${
-                      c.align === "right" ? "text-right" : ""
-                    }`}
-                  >
+                  <th key={c.key} className={c.align === "right" ? "text-right" : ""}>
                     {c.label}
                   </th>
                 ))}
@@ -108,26 +101,27 @@ export default function DataTable<T extends { id: number | string }>({
             <tbody>
               {pageRows.length === 0 && (
                 <tr>
-                  <td
-                    colSpan={columns.length}
-                    className="px-4 py-8 text-center text-faint"
-                  >
-                    No records found.
+                  <td colSpan={columns.length}>
+                    <div className="flex flex-col items-center gap-2 py-10 text-center">
+                      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-elevated text-faint ring-1 ring-line">
+                        <Inbox className="h-5 w-5" />
+                      </span>
+                      <p className="text-sm font-medium text-muted">
+                        {search ? "No matches for this search." : "Nothing to show yet."}
+                      </p>
+                    </div>
                   </td>
                 </tr>
               )}
               {pageRows.map((row, i) => {
                 const rowIndex = (current - 1) * pageSize + i;
                 return (
-                  <tr
-                    key={String(row.id)}
-                    className="border-b border-line/60 transition-colors hover:bg-accent-soft/50"
-                  >
+                  <tr key={String(row.id)}>
                     {columns.map((c) => (
                       <td
                         key={c.key}
-                        className={`px-4 py-3 text-muted ${
-                          c.align === "right" ? "text-right" : ""
+                        className={`text-muted ${
+                          c.align === "right" ? "num text-right" : ""
                         } ${c.className ?? ""}`}
                       >
                         {cellText(c, row, rowIndex)}

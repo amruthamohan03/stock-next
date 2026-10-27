@@ -6,6 +6,9 @@ import FilterBar, { type FilterField } from "../_components/filter-bar";
 import { ReportTabs, ReportHeader } from "../_components/report-ui";
 import {
   getReportOptions,
+  pickParam,
+  DIRECTIONS,
+  intListParam,
   resolveInstDept,
   intParam,
   dateParam,
@@ -16,6 +19,19 @@ import {
 } from "../_components/report-data";
 
 const num = (v: unknown) => Number(v ?? 0);
+
+const INDENT_SORT_COLS = {
+  indent_date: { label: "Indent date", col: sql`im.indent_date` },
+  indent_no: { label: "Indent no", col: sql`lpad(im.indent_no, 12, '0')` },
+  book: { label: "Indent book", col: sql`im.book_no` },
+  department: { label: "Department", col: sql`dep.department_name` },
+  status: { label: "Status", col: sql`im.status` },
+  created_by: { label: "Created by", col: sql`COALESCE(cu.full_name, cu.username)` },
+} as const;
+
+const INDENT_SORTS: FilterField["options"] = Object.entries(INDENT_SORT_COLS).map(
+  ([value, v]) => ({ value, label: v.label })
+);
 
 const ITEM_TYPE_CN: FilterField["options"] = [
   { value: "C", label: "Consumable" },
@@ -46,7 +62,8 @@ export default async function BookReportPage({
   const from = dateParam(sp, "from");
   const to = dateParam(sp, "to");
 
-  const [{ institutions, departments }, { institution, department }] = await Promise.all([
+  const [{ institutions, departments, indentBooks }, { institution, department }] =
+    await Promise.all([
     getReportOptions(),
     resolveInstDept(sp),
   ]);
@@ -63,13 +80,22 @@ export default async function BookReportPage({
       ...instDept,
       { key: "item_type", label: "Item Type", type: "select", options: ITEM_TYPE_CN },
       { key: "eq_type", label: "Category", type: "select", options: EQ_TYPE },
-      { key: "book_no", label: "Book No", type: "number", placeholder: "All" },
+      {
+        key: "book_no",
+        label: "Indent Book",
+        type: "select",
+        multi: true,
+        options: indentBooks,
+        placeholder: "All Indent Books",
+      },
       {
         key: "status",
         label: "Status",
         type: "select",
         options: ["CREATED", "VERIFIED", "PASSED", "ISSUED", "RECEIVED"].map((s) => ({ value: s, label: s[0] + s.slice(1).toLowerCase() })),
       },
+      { key: "sort", label: "Sort By", type: "select", options: INDENT_SORTS },
+      { key: "dir", label: "Order", type: "select", options: [...DIRECTIONS] },
     ],
     stock: [
       ...instDept,
@@ -178,8 +204,9 @@ async function IndentBook({ sp }: { sp: SP }) {
   if (from && to) cond.push(sql`im.indent_date BETWEEN ${from} AND ${to}`);
   const itemType = one(sp, "item_type");
   if (itemType === "C" || itemType === "N") cond.push(sql`im.item_type=${itemType}`);
-  const bookNo = intParam(sp, "book_no");
-  if (bookNo) cond.push(sql`im.book_no=${bookNo}`);
+  const bookIds = intListParam(sp, "book_no");
+  if (bookIds.length)
+    cond.push(sql`im.book_no IN (${sql.join(bookIds.map((b) => sql`${b}`), sql`, `)})`);
   const status = one(sp, "status");
   if (status) cond.push(sql`im.status=${status}`);
   const eq = eqTypeCond(one(sp, "eq_type"), "imt.category_id");
@@ -189,22 +216,36 @@ async function IndentBook({ sp }: { sp: SP }) {
   const dept = intParam(sp, "dept_id");
   if (dept) cond.push(sql`im.department_id=${dept}`);
 
+  const sortKey = pickParam(
+    sp,
+    "sort",
+    Object.keys(INDENT_SORT_COLS) as (keyof typeof INDENT_SORT_COLS)[],
+    "indent_date"
+  );
+  const dir = pickParam(sp, "dir", ["asc", "desc"] as const, "desc");
+  const sortCol = INDENT_SORT_COLS[sortKey].col;
+  // Indents are grouped in JS by insertion order, so the chosen sort drives the
+  // group order and sl_no keeps each indent's own lines in sequence.
+  const orderBy = dir === "desc" ? sql`${sortCol} DESC` : sql`${sortCol} ASC`;
+
   const result = (await db.execute(sql`
     SELECT im.id, im.book_no, im.indent_no,
            to_char(im.indent_date,'DD-MM-YYYY') AS indent_date,
            im.item_type, im.status,
            dep.department_name,
+           COALESCE(cu.full_name, cu.username) AS created_by_name,
            ii.sl_no, ii.item_description, ii.item_purpose,
            ii.qty_intended, ii.qty_passed, ii.qty_issued, ii.remarks,
            imt.item_name, mk.make_name, md.model_name
     FROM indent_master_t im
     LEFT JOIN department_master_t dep ON dep.id = im.department_id
+    LEFT JOIN users_t cu ON cu.id = im.created_by
     LEFT JOIN indent_item_t ii ON ii.indent_id = im.id AND ii.display='Y'
     LEFT JOIN item_master_t imt ON imt.id = ii.item_id
     LEFT JOIN make_t mk ON mk.id = ii.make_id
     LEFT JOIN model_t md ON md.id = ii.model_id
     WHERE ${sql.join(cond, sql` AND `)}
-    ORDER BY im.indent_date DESC, im.book_no, im.indent_no, ii.sl_no
+    ORDER BY ${orderBy}, im.id, ii.sl_no
   `)) as unknown as Record<string, unknown>[];
 
   // Group rows by indent.
@@ -252,6 +293,9 @@ async function IndentBook({ sp }: { sp: SP }) {
             <span className="text-muted"> · {String(h.indent_date)} · Book {String(h.book_no)} · </span>
             <span className="rounded bg-brand-50 px-1.5 py-0.5 text-xs text-brand-700">{String(h.status ?? "")}</span>
             <span className="text-muted"> · {String(h.item_type) === "C" ? "Consumable" : "Non-Consumable"}</span>
+            {h.created_by_name ? (
+              <span className="text-muted"> · by {String(h.created_by_name)}</span>
+            ) : null}
             {h.department_name ? <span className="text-faint"> · {String(h.department_name)}</span> : null}
           </td>
         </tr>
