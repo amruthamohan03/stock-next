@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronsUpDown, Search } from "lucide-react";
+import { Check, ChevronsUpDown, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { csvParts, toggleCsv } from "@/lib/csv-values";
 
 export type SelectOption = { value: string | number; label: string };
 
@@ -38,6 +39,11 @@ type Pos = {
  * isn't room below. It shows up to 15 options (or as many as fit) before
  * scrolling.
  *
+ * With `multiple`, the same control picks several options: `value` is then a
+ * comma-separated list in the order of `options`, the panel stays open while
+ * choices are toggled, and the trigger summarises the selection. Report filters
+ * use that to put "department in (1,2)" style conditions in the URL.
+ *
  * Note: native `required` doesn't apply to a custom control, so forms that use
  * this must validate required selects themselves (see CrudTable.submit).
  */
@@ -48,13 +54,16 @@ export function SearchableSelect({
   options,
   placeholder = "Select…",
   disabled,
+  multiple = false,
 }: {
   id?: string;
+  /** Single mode: the chosen value. Multiple: a comma-separated list. */
   value: string;
   onChange: (value: string) => void;
   options: SelectOption[];
   placeholder?: string;
   disabled?: boolean;
+  multiple?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -111,7 +120,18 @@ export function SearchableSelect({
     };
   }, [open, place]);
 
+  const order = options.map((o) => String(o.value));
+  const picked = multiple ? csvParts(value) : [];
   const selected = options.find((o) => String(o.value) === String(value));
+  // What the closed trigger says: the one label, "n selected", or the placeholder.
+  const triggerLabel = multiple
+    ? picked.length === 0
+      ? placeholder
+      : picked.length === 1
+        ? (options.find((o) => String(o.value) === picked[0])?.label ?? `#${picked[0]}`)
+        : `${picked.length} selected`
+    : (selected?.label ?? placeholder);
+  const hasValue = multiple ? picked.length > 0 : !!selected;
   const q = query.trim().toLowerCase();
   const filtered = q
     ? options.filter((o) => o.label.toLowerCase().includes(q))
@@ -127,10 +147,10 @@ export function SearchableSelect({
         onClick={() => setOpen((o) => !o)}
         className={cn(
           "flex h-9 w-full items-center justify-between rounded-lg border border-line bg-elevated px-3 text-sm shadow-sm transition-colors hover:border-faint focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/35 disabled:cursor-not-allowed disabled:opacity-60",
-          selected ? "text-fg" : "text-faint"
+          hasValue ? "text-fg" : "text-faint"
         )}
       >
-        <span className="truncate">{selected ? selected.label : placeholder}</span>
+        <span className="truncate">{triggerLabel}</span>
         <ChevronsUpDown className="h-4 w-4 shrink-0 text-faint" />
       </button>
 
@@ -163,13 +183,19 @@ export function SearchableSelect({
                 <li className="px-3 py-2 text-sm text-faint">No matches</li>
               )}
               {filtered.map((o) => {
-                const active = String(o.value) === String(value);
+                const v = String(o.value);
+                const active = multiple ? picked.includes(v) : v === String(value);
                 return (
-                  <li key={String(o.value)}>
+                  <li key={v}>
                     <button
                       type="button"
                       onClick={() => {
-                        onChange(String(o.value));
+                        if (multiple) {
+                          // Stay open: picking several is the whole point.
+                          onChange(toggleCsv(value, v, order));
+                          return;
+                        }
+                        onChange(v);
                         setOpen(false);
                         setQuery("");
                       }}
@@ -185,6 +211,17 @@ export function SearchableSelect({
                 );
               })}
             </ul>
+            {multiple && picked.length > 0 && (
+              <div className="border-t border-line p-1">
+                <button
+                  type="button"
+                  onClick={() => onChange("")}
+                  className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-xs font-medium text-muted hover:bg-elevated hover:text-fg"
+                >
+                  <X className="h-3.5 w-3.5" /> Clear {picked.length} selected
+                </button>
+              </div>
+            )}
           </div>,
           document.body
         )}

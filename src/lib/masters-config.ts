@@ -254,6 +254,8 @@ export const MASTERS: Record<string, MasterConfig> = {
   group: {
     table: groupItemNameMasterT,
     writable: ["group_name", "group_code", "display"],
+    requiredOnInsert: ["group_name"],
+    unique: ["group_name"],
   },
   menu: {
     table: menuMasterT,

@@ -7,6 +7,7 @@ import {
   indentItemT,
   departmentMasterT,
   indentBookT,
+  stockBookMasterT,
   groupItemNameMasterT,
   itemMasterT,
   makeT,
@@ -33,6 +34,7 @@ export default async function IndentViewPage({
       id: indentMasterT.id,
       book_no: indentMasterT.book_no,
       book_name: indentBookT.book_name,
+      no_stock_entry: indentMasterT.no_stock_entry,
       indent_no: indentMasterT.indent_no,
       indent_date: indentMasterT.indent_date,
       purpose: indentMasterT.purpose,
@@ -60,6 +62,8 @@ export default async function IndentViewPage({
       make_name: makeT.make_name,
       model_name: modelT.model_name,
       item_description: indentItemT.item_description,
+      stock_book_name: stockBookMasterT.book_name,
+      stock_book_page_no: indentItemT.stock_book_page_no,
       item_purpose: indentItemT.item_purpose,
       qty_intended: indentItemT.qty_intended,
       remarks: indentItemT.remarks,
@@ -69,6 +73,7 @@ export default async function IndentViewPage({
     .leftJoin(groupItemNameMasterT, eq(indentItemT.group_id, groupItemNameMasterT.id))
     .leftJoin(makeT, eq(indentItemT.make_id, makeT.id))
     .leftJoin(modelT, eq(indentItemT.model_id, modelT.id))
+    .leftJoin(stockBookMasterT, eq(indentItemT.stock_book_master_id, stockBookMasterT.id))
     .where(and(eq(indentItemT.indent_id, indentId), eq(indentItemT.display, "Y")))
     .orderBy(asc(indentItemT.sl_no));
 
@@ -76,10 +81,10 @@ export default async function IndentViewPage({
 
   const field = (label: string, value: React.ReactNode) => (
     <div className="min-w-0">
-      <dt className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+      <dt className="text-[11px] font-medium uppercase tracking-wider text-faint">
         {label}
       </dt>
-      <dd className="mt-1 truncate text-sm font-medium text-slate-700">{value || "—"}</dd>
+      <dd className="mt-1 truncate text-sm font-medium text-fg">{value || "—"}</dd>
     </div>
   );
 
@@ -134,14 +139,18 @@ export default async function IndentViewPage({
             {field("Date", formatDate(header.indent_date))}
             {field("Type", header.item_type === "C" ? "Consumable" : "Non-consumable")}
             {field("Department", header.department_name)}
+            {field(
+              "Stock Register",
+              header.no_stock_entry === "Y" ? "No entry (flagged)" : "To be entered"
+            )}
             {field("Status", <StatusBadge status={header.status} />)}
           </dl>
           {header.purpose && (
-            <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-4">
-              <div className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+            <div className="rounded-lg border border-line/60 bg-elevated/60 p-4">
+              <div className="text-[11px] font-medium uppercase tracking-wider text-faint">
                 Purpose
               </div>
-              <p className="mt-1 text-sm text-slate-700">{header.purpose}</p>
+              <p className="mt-1 text-sm text-fg">{header.purpose}</p>
             </div>
           )}
         </CardContent>
@@ -167,7 +176,7 @@ export default async function IndentViewPage({
 
       {/* Items */}
       <Card>
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+        <div className="flex items-center justify-between border-b border-line/60 px-5 py-4">
           <h2 className="text-base font-semibold text-slate-800">Items</h2>
           <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700">
             {items.length}
@@ -177,7 +186,7 @@ export default async function IndentViewPage({
           <div className="overflow-x-auto">
             <table className="w-full text-sm" style={{ minWidth: "64rem" }}>
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50/70 text-left text-[11px] uppercase tracking-wider text-slate-500">
+                <tr className="border-b border-line bg-elevated/70 text-left text-[11px] uppercase tracking-wider text-muted">
                   <th className="px-4 py-3 font-semibold">#</th>
                   <th className="px-4 py-3 font-semibold">Group</th>
                   <th className="px-4 py-3 font-semibold">Item</th>
@@ -186,13 +195,14 @@ export default async function IndentViewPage({
                   <th className="px-4 py-3 font-semibold">Description</th>
                   <th className="px-4 py-3 font-semibold">Purpose</th>
                   <th className="px-4 py-3 text-right font-semibold">Qty</th>
+                  <th className="px-4 py-3 font-semibold">Stock Book</th>
                   <th className="px-4 py-3 font-semibold">Remarks</th>
                 </tr>
               </thead>
               <tbody>
                 {items.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="px-4 py-8 text-center text-slate-400">
+                    <td colSpan={9} className="px-4 py-8 text-center text-faint">
                       No items.
                     </td>
                   </tr>
@@ -200,17 +210,22 @@ export default async function IndentViewPage({
                 {items.map((it, i) => (
                   <tr
                     key={it.id}
-                    className="border-b border-slate-50 text-slate-600 transition-colors hover:bg-brand-50/40"
+                    className="border-b border-line/60 text-muted transition-colors hover:bg-accent-soft"
                   >
-                    <td className="px-4 py-3 text-slate-400">{i + 1}</td>
+                    <td className="px-4 py-3 text-faint">{i + 1}</td>
                     <td className="px-4 py-3">{it.group_name || "—"}</td>
-                    <td className="px-4 py-3 font-medium text-slate-700">{it.item_name || "—"}</td>
+                    <td className="px-4 py-3 font-medium text-fg">{it.item_name || "—"}</td>
                     <td className="px-4 py-3">{it.make_name || "—"}</td>
                     <td className="px-4 py-3">{it.model_name || "—"}</td>
                     <td className="px-4 py-3">{it.item_description || "—"}</td>
                     <td className="px-4 py-3">{it.item_purpose || "—"}</td>
-                    <td className="px-4 py-3 text-right font-semibold text-slate-700">
+                    <td className="px-4 py-3 text-right font-semibold text-fg">
                       {it.qty_intended}
+                    </td>
+                    <td className="px-4 py-3">
+                      {it.stock_book_name
+                        ? `${it.stock_book_name}${it.stock_book_page_no ? ` · p.${it.stock_book_page_no}` : ""}`
+                        : "—"}
                     </td>
                     <td className="px-4 py-3">{it.remarks || "—"}</td>
                   </tr>
@@ -218,7 +233,7 @@ export default async function IndentViewPage({
               </tbody>
               {items.length > 0 && (
                 <tfoot>
-                  <tr className="border-t border-slate-200 bg-slate-50/70 font-medium text-slate-700">
+                  <tr className="border-t border-line bg-elevated/70 font-medium text-fg">
                     <td colSpan={7} className="px-4 py-3 text-right">
                       Total
                     </td>

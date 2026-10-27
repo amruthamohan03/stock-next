@@ -29,7 +29,7 @@ export function Pagination({
       </span>
       <div className="flex items-center gap-2">
         <Button
-          variant="outline"
+          variant="soft"
           size="sm"
           disabled={page <= 1}
           onClick={() => onPage(page - 1)}
@@ -40,7 +40,7 @@ export function Pagination({
           Page {Math.min(page, pageCount)} of {pageCount}
         </span>
         <Button
-          variant="outline"
+          variant="soft"
           size="sm"
           disabled={page >= pageCount}
           onClick={() => onPage(page + 1)}

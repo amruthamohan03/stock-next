@@ -534,6 +534,9 @@ export const indentMasterT = pgTable("indent_master_t", {
   issued_by: integer(),
   received_by: integer(),
   status: varchar({ length: 20 }).default("CREATED"),
+  // 'Y' when the items on this indent are deliberately not written into the
+  // stock register (e.g. consumables issued straight out).
+  no_stock_entry: varchar({ length: 1 }).default("N"),
   bill_path: varchar({ length: 255 }), // stored filename of the uploaded bill (image/pdf)
   bill_name: varchar({ length: 255 }), // original filename
   bill_type: varchar({ length: 100 }), // MIME type
@@ -556,6 +559,8 @@ export const indentItemT = pgTable("indent_item_t", {
   qty_passed: integer().default(0),
   qty_issued: integer().default(0),
   remarks: varchar({ length: 255 }),
+  // The register itself (stock_book_master_t); page/volume stay as written.
+  stock_book_master_id: integer(),
   stock_book_page_no: integer(),
   stock_book_volume: integer(),
   day_book_page_no: integer(),
@@ -970,6 +975,11 @@ export const stockTransactionT = pgTable("stock_transaction_t", {
   // ledger the running totals are computed from. Nullable: entries made before
   // the register master existed have none.
   stock_book_master_id: integer(),
+  // The page of that register the entry is written on, as in the paper book.
+  stock_book_page_no: integer(),
+  // 'Y' when the entry is recorded with no indent behind it (direct purchase,
+  // donation, opening balance).
+  no_indent_entry: varchar({ length: 1 }).default("N"),
   transaction_date: date().notNull(),
   transaction_type: varchar({ length: 20 }).notNull(),
   stock_entry_type: varchar({ length: 20 }).default("INDENT_BASED"),
@@ -982,7 +992,12 @@ export const stockTransactionT = pgTable("stock_transaction_t", {
   indent_item_id: integer(),
   group_item_id: integer(),
   transfer_item_id: bigint({ mode: "number" }),
-  received_from: varchar({ length: 200 }),
+  received_from: varchar({ length: 200 }), // legacy free text from the import
+  // Where the stock came from when it was moved in rather than bought:
+  // DEPARTMENT | LOCATION | STOCK, with the matching id below. Kept apart from
+  // received_from so the imported text is never overwritten.
+  source_type: varchar({ length: 20 }),
+  transferred_from_department_id: integer(),
   issued_to: varchar({ length: 200 }),
   issued_to_location_id: integer(),
   transferred_from_location_id: integer(),

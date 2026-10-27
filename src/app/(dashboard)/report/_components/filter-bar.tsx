@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import PrintButton from "./print-button";
+import { csvParts } from "@/lib/csv-values";
 
 export type FilterOption = { value: string; label: string; parent?: string };
 export type FilterField = {
@@ -18,6 +19,8 @@ export type FilterField = {
   /** For cascading selects: only show options whose `parent` matches the
    *  current value of the field named here (e.g. dept depends on institution). */
   dependsOn?: string;
+  /** Pick several values at once; the param becomes a comma-separated list. */
+  multi?: boolean;
   colSpan?: 1 | 2;
 };
 
@@ -69,9 +72,12 @@ export default function FilterBar({
     () => (f: FilterField) => {
       if (!f.options) return [];
       if (!f.dependsOn) return f.options;
-      const parent = vals[f.dependsOn];
-      if (!parent) return f.options.filter((o) => !o.parent || o.parent === "0");
-      return f.options.filter((o) => !o.parent || o.parent === parent || o.parent === "0");
+      // The parent may itself hold several values, so match against any of them.
+      const parents = csvParts(vals[f.dependsOn]);
+      if (parents.length === 0) return f.options.filter((o) => !o.parent || o.parent === "0");
+      return f.options.filter(
+        (o) => !o.parent || o.parent === "0" || parents.includes(o.parent)
+      );
     },
     [vals]
   );
@@ -120,6 +126,7 @@ export default function FilterBar({
                   onChange={(v) => set(f.key, v)}
                   options={optionsFor(f)}
                   placeholder={f.placeholder ?? "All"}
+                  multiple={f.multi}
                 />
               ) : (
                 <Input

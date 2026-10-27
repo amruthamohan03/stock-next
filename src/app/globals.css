@@ -262,6 +262,19 @@ body {
     background: var(--line);
   }
 
+  /* Constructive secondary actions — Add, Next, Prev. Tinted with the accent
+     so they read as "do this" without competing with the primary button. */
+  .btn-soft {
+    background: var(--accent-soft);
+    color: var(--accent-fg);
+    border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+  .btn-soft:hover {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+    box-shadow: 0 6px 14px -8px color-mix(in srgb, var(--accent) 80%, transparent);
+  }
+
   .btn-ghost {
     color: var(--muted);
   }

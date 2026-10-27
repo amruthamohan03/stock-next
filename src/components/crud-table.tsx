@@ -14,23 +14,9 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm";
 import { apiDelete, apiRequest } from "@/lib/api-client";
+import { csvParts, toggleCsv } from "@/lib/csv-values";
 
 const PAGE_SIZE = 10;
-
-/** Split a stored "1,3" value into its parts. */
-function csvParts(csv: string): string[] {
-  return csv.split(",").map((v) => v.trim()).filter(Boolean);
-}
-
-/**
- * Add or remove one value from a comma-separated list, keeping the order of
- * `order` so the stored string does not depend on the order of clicks.
- */
-export function toggleCsv(csv: string, value: string, order: string[]): string {
-  const cur = csvParts(csv);
-  const next = cur.includes(value) ? cur.filter((c) => c !== value) : [...cur, value];
-  return order.filter((o) => next.includes(o)).join(",");
-}
 
 export type FieldDef = {
   name: string;

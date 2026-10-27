@@ -1,6 +1,13 @@
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { collegeT, departmentMasterT, stockbookTypeT } from "@/db/schema";
+import {
+  collegeT,
+  departmentMasterT,
+  indentBookT,
+  quotationCategoriesT,
+  stockBookMasterT,
+  stockbookTypeT,
+} from "@/db/schema";
 import type { FilterOption } from "./filter-bar";
 
 export type SP = Record<string, string | string[] | undefined>;
@@ -16,6 +23,54 @@ export const intParam = (sp: SP, key: string): number => {
   const n = Number(one(sp, key));
   return Number.isInteger(n) && n > 0 ? n : 0;
 };
+
+/**
+ * Parse a multi-select param ("1,2") into positive integers, de-duplicated.
+ * Anything that is not a positive integer is dropped, so a hand-edited URL
+ * cannot push junk into a query.
+ */
+export const intListParam = (sp: SP, key: string): number[] => {
+  const seen = new Set<number>();
+  for (const part of one(sp, key).split(",")) {
+    const n = Number(part.trim());
+    if (Number.isInteger(n) && n > 0) seen.add(n);
+  }
+  return [...seen];
+};
+
+/**
+ * Parse a multi-select param of code values ("WORKING,DAMAGED"), keeping only
+ * the ones in `allowed` — the same reason as above.
+ */
+export const codeListParam = (sp: SP, key: string, allowed: readonly string[]): string[] => {
+  const ok = new Set(allowed);
+  const seen = new Set<string>();
+  for (const part of one(sp, key).split(",")) {
+    const v = part.trim().toUpperCase();
+    if (ok.has(v)) seen.add(v);
+  }
+  return [...seen];
+};
+
+/**
+ * Read a param that must be one of a known set — sort keys and directions.
+ * Anything else falls back, so a hand-edited URL can never reach the SQL.
+ */
+export const pickParam = <T extends string>(
+  sp: SP,
+  key: string,
+  allowed: readonly T[],
+  fallback: T
+): T => {
+  const v = one(sp, key);
+  return (allowed as readonly string[]).includes(v) ? (v as T) : fallback;
+};
+
+/** The two sort directions, as a filter-bar option list. */
+export const DIRECTIONS = [
+  { value: "asc", label: "Ascending" },
+  { value: "desc", label: "Descending" },
+] as const;
 
 /** Return an ISO date param only if it is a valid YYYY-MM-DD string. */
 export const dateParam = (sp: SP, key: string): string | null => {
@@ -51,8 +106,11 @@ export async function getReportOptions(): Promise<{
   institutions: FilterOption[];
   departments: FilterOption[];
   stockbookTypes: FilterOption[];
+  indentBooks: FilterOption[];
+  stockBooks: FilterOption[];
+  itemCategories: FilterOption[];
 }> {
-  const [colleges, depts, types] = await Promise.all([
+  const [colleges, depts, types, indentBooks, stockBooks, categories] = await Promise.all([
     db
       .select({ id: collegeT.id, name: collegeT.college_name })
       .from(collegeT)
@@ -72,6 +130,25 @@ export async function getReportOptions(): Promise<{
       .from(stockbookTypeT)
       .where(eq(stockbookTypeT.display, "Y"))
       .orderBy(asc(stockbookTypeT.name)),
+    db
+      .select({ id: indentBookT.id, name: indentBookT.book_name, book_no: indentBookT.book_no })
+      .from(indentBookT)
+      .where(eq(indentBookT.display, "Y"))
+      .orderBy(asc(indentBookT.book_name)),
+    db
+      .select({
+        id: stockBookMasterT.id,
+        name: stockBookMasterT.book_name,
+        book_no: stockBookMasterT.book_no,
+      })
+      .from(stockBookMasterT)
+      .where(eq(stockBookMasterT.display, "Y"))
+      .orderBy(asc(stockBookMasterT.book_name)),
+    db
+      .select({ id: quotationCategoriesT.id, name: quotationCategoriesT.category_name })
+      .from(quotationCategoriesT)
+      .where(eq(quotationCategoriesT.display, "Y"))
+      .orderBy(asc(quotationCategoriesT.category_name)),
   ]);
 
   return {
@@ -82,6 +159,15 @@ export async function getReportOptions(): Promise<{
       parent: String(d.college_id ?? 0),
     })),
     stockbookTypes: types.map((t) => ({ value: String(t.id), label: t.name })),
+    indentBooks: indentBooks.map((b) => ({
+      value: String(b.id),
+      label: b.book_no ? `${b.name} (Book ${b.book_no})` : b.name,
+    })),
+    stockBooks: stockBooks.map((b) => ({
+      value: String(b.id),
+      label: b.book_no ? `${b.name} (Book ${b.book_no})` : b.name,
+    })),
+    itemCategories: categories.map((c) => ({ value: String(c.id), label: c.name })),
   };
 }
 

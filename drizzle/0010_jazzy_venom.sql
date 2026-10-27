@@ -1,0 +1,1 @@
+ALTER TABLE "stock_transaction_t" ADD COLUMN "stock_book_page_no" integer;
