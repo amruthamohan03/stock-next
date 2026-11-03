@@ -1,12 +1,15 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useCallback, type ReactNode } from "react";
 import { Inbox } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Pagination } from "@/components/ui/pagination";
+import { FilterRow, TableToolbar, tableCardClasses } from "@/components/ui/table-controls";
+import { useTableView } from "@/lib/use-table-view";
 
 export type Column<T> = {
+  /** Keys starting with "_" (e.g. "_sl", "_actions") are fixed: they can't be
+   *  hidden, reordered or filtered. */
   key: string;
   label: string;
   align?: "left" | "right";
@@ -14,14 +17,14 @@ export type Column<T> = {
   /** Custom cell renderer. Falls back to `value` / row[key] when omitted.
    *  `index` is the row's position in the full filtered list (useful for #). */
   render?: (row: T, index: number) => ReactNode;
-  /** Text used for searching (and as the default cell text). */
+  /** Text used for searching/filtering (and as the default cell text). */
   value?: (row: T) => string | number | null | undefined;
 };
 
 /**
- * Generic read-only list table with a search box and pagination baked in.
- * Use this (or CrudTable for editable masters) for every list in the app so
- * search + paging behave identically everywhere.
+ * Generic read-only list table with search, per-column filters, a column
+ * chooser and pagination baked in. Use this (or CrudTable for editable
+ * masters) for every list in the app so they all behave identically.
  *
  * Column `render`/`value` are functions, so any page using DataTable must be a
  * Client Component (define the columns in a "use client" wrapper and pass plain
@@ -43,81 +46,61 @@ export default function DataTable<T extends { id: number | string }>({
   /** Optional min table width (e.g. "64rem") so wide tables scroll instead of cramping. */
   minWidth?: string;
 }) {
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((r) =>
-      columns.some((c) => {
-        const v = c.value ? c.value(r) : (r as Record<string, unknown>)[c.key];
-        return String(v ?? "").toLowerCase().includes(q);
-      })
-    );
-  }, [rows, columns, search]);
-
-  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const current = Math.min(page, pageCount);
-  const pageRows = filtered.slice((current - 1) * pageSize, current * pageSize);
+  const text = useCallback((c: Column<T>, r: T) => {
+    const v = c.value ? c.value(r) : (r as Record<string, unknown>)[c.key];
+    return String(v ?? "");
+  }, []);
+  const view = useTableView({ rows, columns, text, pageSize, tableId: title });
+  const filtering = view.search !== "" || view.activeFilters > 0;
 
   const cellText = (c: Column<T>, r: T, index: number) => {
     if (c.render) return c.render(r, index);
-    const v = c.value ? c.value(r) : (r as Record<string, unknown>)[c.key];
-    return v == null || v === "" ? "—" : String(v);
+    const v = text(c, r);
+    return v === "" ? "—" : v;
   };
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className={tableCardClasses.card}>
+      <CardHeader className={tableCardClasses.header}>
         <div>
           <CardTitle>{title}</CardTitle>
-          {subtitle && (
-            <span className="text-sm text-faint">{subtitle}</span>
-          )}
+          {subtitle && <span className="text-sm text-faint">{subtitle}</span>}
         </div>
-        <Input
-          placeholder="Search…"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(1);
-          }}
-          className="h-8 w-48"
-        />
+        <TableToolbar view={view} />
       </CardHeader>
-      <CardContent className="p-0">
+      <CardContent className={tableCardClasses.content}>
         <div className="overflow-x-auto">
           <table className="data-grid" style={minWidth ? { minWidth } : undefined}>
             <thead>
               <tr>
-                {columns.map((c) => (
+                {view.visibleColumns.map((c) => (
                   <th key={c.key} className={c.align === "right" ? "text-right" : ""}>
                     {c.label}
                   </th>
                 ))}
               </tr>
+              <FilterRow view={view} columns={view.visibleColumns} />
             </thead>
             <tbody>
-              {pageRows.length === 0 && (
+              {view.pageRows.length === 0 && (
                 <tr>
-                  <td colSpan={columns.length}>
+                  <td colSpan={view.visibleColumns.length}>
                     <div className="flex flex-col items-center gap-2 py-10 text-center">
                       <span className="flex h-11 w-11 items-center justify-center rounded-full bg-elevated text-faint ring-1 ring-line">
                         <Inbox className="h-5 w-5" />
                       </span>
                       <p className="text-sm font-medium text-muted">
-                        {search ? "No matches for this search." : "Nothing to show yet."}
+                        {filtering ? "No matches for this search." : "Nothing to show yet."}
                       </p>
                     </div>
                   </td>
                 </tr>
               )}
-              {pageRows.map((row, i) => {
-                const rowIndex = (current - 1) * pageSize + i;
+              {view.pageRows.map((row, i) => {
+                const rowIndex = view.pageStart + i;
                 return (
                   <tr key={String(row.id)}>
-                    {columns.map((c) => (
+                    {view.visibleColumns.map((c) => (
                       <td
                         key={c.key}
                         className={`text-muted ${
@@ -134,10 +117,10 @@ export default function DataTable<T extends { id: number | string }>({
           </table>
         </div>
         <Pagination
-          page={current}
+          page={view.page}
           pageSize={pageSize}
-          total={filtered.length}
-          onPage={setPage}
+          total={view.filtered.length}
+          onPage={view.setPage}
         />
       </CardContent>
     </Card>

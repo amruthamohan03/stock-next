@@ -328,7 +328,7 @@ export default function KfcForm13Editor({
                     Government Polytechnic College Nedumkandam
                   </div>
                   <div className="text-base font-bold tracking-wide text-slate-900">
-                    REVERSE OF K.F.C. FORM 13
+                    K.F.C. FORM 13
                   </div>
                 </th>
                 <th className="no-print border border-slate-400" />
@@ -504,6 +504,7 @@ export default function KfcForm13Editor({
               <div className="h-10" />
               <div className="font-semibold">{signName || " "}</div>
               <div className="text-slate-600">{signDesignation}</div>
+              <div className="text-slate-600">{"Department Of Computer Engineering"}</div>
             </div>
           </div>
         )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Pencil, Trash2, Inbox } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Pagination } from "@/components/ui/pagination";
+import { FilterRow, TableToolbar, tableCardClasses } from "@/components/ui/table-controls";
+import { useTableView } from "@/lib/use-table-view";
 import { Modal } from "@/components/ui/modal";
 import { TableAction, TableActions } from "@/components/ui/table-action";
 import { Badge } from "@/components/ui/badge";
@@ -67,8 +69,9 @@ export default function CrudTable({
   const [form, setForm] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
+  const text = useCallback((c: ColumnDef, r: Row) => String(r[c.key] ?? ""), []);
+  const view = useTableView({ rows, columns, text, pageSize: PAGE_SIZE, tableId: title });
+  const filtering = view.search !== "" || view.activeFilters > 0;
 
   const openAdd = () => {
     const init: Record<string, string> = {};
@@ -129,62 +132,42 @@ export default function CrudTable({
     if (toast.fromResult(result, { success: "Record deleted" })) router.refresh();
   };
 
-  const filtered = rows.filter((r) =>
-    search
-      ? columns.some((c) =>
-          String(r[c.key] ?? "").toLowerCase().includes(search.toLowerCase())
-        )
-      : true
-  );
-
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const current = Math.min(page, pageCount);
-  const pageRows = filtered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
-
   return (
-    <Card>
-      <CardHeader>
+    <Card className={tableCardClasses.card}>
+      <CardHeader className={tableCardClasses.header}>
         <CardTitle>{title}</CardTitle>
-        <div className="flex items-center gap-2">
-          <Input
-            placeholder="Search…"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-            className="h-8 w-40"
-          />
+        <TableToolbar view={view}>
           <Button size="sm" onClick={openAdd}>
             <Plus className="h-4 w-4" /> Add
           </Button>
-        </div>
+        </TableToolbar>
       </CardHeader>
-      <CardContent className="p-0">
+      <CardContent className={tableCardClasses.content}>
         <div className="overflow-x-auto">
           <table className="data-grid">
             <thead>
               <tr>
                 <th className="w-12">#</th>
-                {columns.map((c) => (
+                {view.visibleColumns.map((c) => (
                   <th key={c.key}>{c.label}</th>
                 ))}
                 <th className="text-right">Actions</th>
               </tr>
+              <FilterRow view={view} columns={view.visibleColumns} leading={1} trailing={1} />
             </thead>
             <tbody>
-              {pageRows.length === 0 && (
+              {view.pageRows.length === 0 && (
                 <tr>
-                  <td colSpan={columns.length + 2}>
+                  <td colSpan={view.visibleColumns.length + 2}>
                     <div className="flex flex-col items-center gap-2 py-10 text-center">
                       <span className="flex h-11 w-11 items-center justify-center rounded-full bg-elevated text-faint ring-1 ring-line">
                         <Inbox className="h-5 w-5" />
                       </span>
                       <p className="text-sm font-medium text-muted">
-                        {search ? "No matches for this search." : "Nothing here yet."}
+                        {filtering ? "No matches for this search." : "Nothing here yet."}
                       </p>
                       <p className="text-xs text-faint">
-                        {search
+                        {filtering
                           ? "Try a different term."
                           : "Use the Add button to create the first record."}
                       </p>
@@ -192,10 +175,10 @@ export default function CrudTable({
                   </td>
                 </tr>
               )}
-              {pageRows.map((row, i) => (
+              {view.pageRows.map((row, i) => (
                 <tr key={String(row.id)}>
-                  <td className="num text-faint">{(current - 1) * PAGE_SIZE + i + 1}</td>
-                  {columns.map((c) => (
+                  <td className="num text-faint">{view.pageStart + i + 1}</td>
+                  {view.visibleColumns.map((c) => (
                     <td key={c.key} className="text-fg">
                       {c.badge ? (
                         <Badge value={String(row[c.key] ?? "")} />
@@ -216,10 +199,10 @@ export default function CrudTable({
           </table>
         </div>
         <Pagination
-          page={current}
+          page={view.page}
           pageSize={PAGE_SIZE}
-          total={filtered.length}
-          onPage={setPage}
+          total={view.filtered.length}
+          onPage={view.setPage}
         />
       </CardContent>
 

@@ -27,7 +27,7 @@ export default async function StockEditPage({
     .limit(1);
   if (!txn) notFound();
 
-  const { stockBooks, departments, registers, locations, indentBooks, indents } =
+  const { stockBooks, departments, registers, locations, indentBooks, indents, groups } =
     await getStockOptions();
 
   // Reconstruct the quantity the form works with from the stored columns.
@@ -82,6 +82,7 @@ export default async function StockEditPage({
         locations={locations}
         indentBooks={indentBooks}
         indents={indents}
+        groups={groups}
         initial={initial}
       />
     </div>

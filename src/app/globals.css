@@ -349,8 +349,27 @@ body {
   color: var(--accent-fg);
 }
 
+/* Paper size for every printed report. A wide table opts into landscape with
+   `.print-landscape`; named pages need Chrome 85+ / Firefox 110+, and a browser
+   without them just stays portrait, where the fit-to-page rules below still
+   keep the last column on the sheet. */
+@page {
+  size: A4;
+  margin: 12mm 10mm;
+}
+@page wide {
+  size: A4 landscape;
+  margin: 10mm;
+}
+
 /* Print: show only the report area, hide app chrome and interactive controls */
 @media print {
+  /* `page` only takes effect on a box in the page flow, and .printable is
+     pinned with position:absolute below — so the named page is hung on the root
+     element instead, keyed off the report asking for it. */
+  html:has(.print-landscape) {
+    page: wide;
+  }
   body * {
     visibility: hidden;
   }
@@ -374,8 +393,38 @@ body {
   .shadow-card {
     overflow: visible !important;
   }
-  /* Force light ink-on-paper regardless of the active theme */
+  /* Force light ink-on-paper regardless of the active theme. Printing a dark
+     page used to be survivable only because browsers drop backgrounds; now that
+     the tints below are printed on purpose, the whole token set is swapped to a
+     paper palette so dark-theme text can't end up white on white. */
   .printable {
+    /* Both halves of the token pair are needed: `--color-*` is what the
+       utilities read (it is computed once on :root, so redefining the raw var
+       alone would not reach them), and the raw vars are what the handful of
+       plain-CSS rules read. */
+    --color-surface: #ffffff;
+    --color-card: #ffffff;
+    --color-elevated: #eef1f7;
+    --color-line: #c3c9d6;
+    --color-fg: #0f172a;
+    --color-muted: #475569;
+    --color-faint: #64748b;
+    --color-accent: #4f46e5;
+    --color-accent-soft: #eef2ff;
+    --color-accent-fg: #3730a3;
+    --color-on-accent: #ffffff;
+    --surface: #ffffff;
+    --card: #ffffff;
+    --elevated: #eef1f7;
+    --line: #c3c9d6;
+    --fg: #0f172a;
+    --muted: #475569;
+    --faint: #64748b;
+    --accent: #4f46e5;
+    --accent-soft: #eef2ff;
+    --accent-fg: #3730a3;
+    --on-accent: #ffffff;
+    color-scheme: light;
     color: #111 !important;
     background: #fff !important;
   }
@@ -385,5 +434,53 @@ body {
   }
   .print-avoid-break {
     break-inside: avoid;
+  }
+  /* A report table sits in a horizontal scroller with a min-width so its
+     columns stay readable on screen. Paper doesn't scroll: the scroller clips
+     and the last columns drop off the right edge of the sheet. Release both and
+     fit the table to the page instead. */
+  .printable .overflow-x-auto {
+    overflow: visible !important;
+  }
+  .printable table {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+  /* Paper is denser than a screen: a report reads fine a couple of points
+     smaller and costs noticeably fewer sheets. */
+  .printable table {
+    font-size: 11.5px;
+  }
+  .printable table :where(th, td) {
+    padding-top: 0.3rem;
+    padding-bottom: 0.3rem;
+  }
+  /* Column headings repeat on every sheet; the grand total prints once, at the
+     end — a tfoot otherwise repeats on every page. */
+  .printable thead {
+    display: table-header-group;
+  }
+  .printable tfoot {
+    display: table-row-group;
+  }
+  .printable tr {
+    break-inside: avoid;
+  }
+  /* Tints carry meaning here (No Entry, subtotals, status pills), so stop the
+     browser dropping backgrounds. */
+  .printable,
+  .printable * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  /* …except the stat tiles: solid gradients are ink-heavy and read worse on
+     paper than an outlined box does. */
+  .printable [class*="grad-"] {
+    background-image: none !important;
+    border: 1px solid #c7ccd4;
+  }
+  .printable [class*="grad-"],
+  .printable [class*="grad-"] * {
+    color: #111 !important;
   }
 }
