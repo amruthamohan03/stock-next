@@ -41,8 +41,10 @@ export default async function StockLedgerPage() {
     .orderBy(desc(stockTransactionT.transaction_date), desc(stockTransactionT.id))
     .limit(500);
 
-  const [rows, { stockBooks, departments, registers, locations, indentBooks, indents }] =
-    await Promise.all([
+  const [
+    rows,
+    { stockBooks, departments, registers, locations, indentBooks, indents, groups },
+  ] = await Promise.all([
     rowsPromise,
     getStockOptions(),
   ]);
@@ -56,6 +58,7 @@ export default async function StockLedgerPage() {
         locations={locations}
         indentBooks={indentBooks}
         indents={indents}
+        groups={groups}
       />
       <StockTable rows={rows} />
     </div>

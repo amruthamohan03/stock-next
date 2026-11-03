@@ -22,7 +22,25 @@ export type IndentRow = {
   has_bill: boolean;
   item_count: number;
   total_qty: number;
+  lines: IndentLine[];
 };
+
+export type IndentLine = { book: string | null; item: string | null; page: number | null };
+
+const NO_BOOK = "No stock book";
+
+/** Lines grouped by register (in query order), each item as "item (Page No: n)". */
+function bookGroups(lines: IndentLine[]) {
+  const groups = new Map<string, string[]>();
+  for (const l of lines) {
+    const book = l.book ?? NO_BOOK;
+    const item = `${l.item ?? "—"}${l.page != null ? ` (Page No: ${l.page})` : ""}`;
+    const items = groups.get(book) ?? [];
+    if (!items.includes(item)) items.push(item);
+    groups.set(book, items);
+  }
+  return [...groups];
+}
 
 export default function IndentTable({ rows }: { rows: IndentRow[] }) {
   const router = useRouter();
@@ -53,17 +71,14 @@ export default function IndentTable({ rows }: { rows: IndentRow[] }) {
       },
       {
         key: "indent_no",
-        label: "Indent No",
-        value: (r) => r.indent_no,
+        label: "Indent No / Date",
+        value: (r) => `${r.indent_no ?? ""} ${formatDate(r.indent_date)}`,
         render: (r) => (
-          <span className="font-medium text-slate-700">{r.indent_no}</span>
+          <div>
+            <span className="block font-medium text-fg">{r.indent_no}</span>
+            <span className="block text-xs text-faint">{formatDate(r.indent_date)}</span>
+          </div>
         ),
-      },
-      {
-        key: "indent_date",
-        label: "Date",
-        value: (r) => (r.indent_date ? String(r.indent_date) : ""),
-        render: (r) => formatDate(r.indent_date),
       },
       { key: "department_name", label: "Department", value: (r) => r.department_name },
       {
@@ -73,6 +88,33 @@ export default function IndentTable({ rows }: { rows: IndentRow[] }) {
         render: (r) => (
           <span className="block max-w-sm truncate">{r.purpose || "—"}</span>
         ),
+      },
+      {
+        key: "stock_books",
+        label: "Stock Book / Items (Page)",
+        value: (r) =>
+          bookGroups(r.lines)
+            .map(([book, items]) => `${book} ${items.join(", ")}`)
+            .join(" "),
+        render: (r) =>
+          r.lines.length === 0 ? (
+            <span className="text-faint">—</span>
+          ) : (
+            <div className="max-w-sm space-y-1.5">
+              {bookGroups(r.lines).map(([book, items]) => (
+                <div key={book}>
+                  <span
+                    className={`block text-xs font-semibold ${
+                      book === NO_BOOK ? "text-faint" : "text-fg"
+                    }`}
+                  >
+                    {book}
+                  </span>
+                  <span className="block text-xs text-muted">{items.join(", ")}</span>
+                </div>
+              ))}
+            </div>
+          ),
       },
       {
         key: "item_type",
@@ -158,7 +200,7 @@ export default function IndentTable({ rows }: { rows: IndentRow[] }) {
       subtitle={`${rows.length} indents`}
       columns={columns}
       rows={rows}
-      minWidth="72rem"
+      minWidth="90rem"
     />
   );
 }

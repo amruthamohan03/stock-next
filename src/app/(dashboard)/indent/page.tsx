@@ -1,8 +1,15 @@
 import { desc, eq, sql, and } from "drizzle-orm";
 import { db } from "@/db";
-import { indentMasterT, departmentMasterT, indentItemT } from "@/db/schema";
+import {
+  indentMasterT,
+  departmentMasterT,
+  indentItemT,
+  stockBookMasterT,
+  groupItemNameMasterT,
+  itemMasterT,
+} from "@/db/schema";
 import IndentForm from "./indent-form";
-import IndentTable from "./indent-table";
+import IndentTable, { type IndentLine } from "./indent-table";
 import { getIndentOptions } from "./options";
 
 export default async function IndentPage() {
@@ -21,6 +28,13 @@ export default async function IndentPage() {
       has_bill: sql<boolean>`(${indentMasterT.bill_path} is not null)`,
       item_count: sql<number>`count(${indentItemT.id})::int`,
       total_qty: sql<number>`coalesce(sum(${indentItemT.qty_intended}),0)::int`,
+      // One entry per line: its register, item (group name, else item name) and
+      // page. The table groups these by register.
+      lines: sql<IndentLine[]>`coalesce(json_agg(json_build_object(
+        'book', ${stockBookMasterT.book_name},
+        'item', coalesce(${groupItemNameMasterT.group_name}, ${itemMasterT.item_name}),
+        'page', ${indentItemT.stock_book_page_no}
+      ) order by ${stockBookMasterT.book_name}, ${indentItemT.sl_no}) filter (where ${indentItemT.id} is not null), '[]')`,
     })
     .from(indentMasterT)
     .leftJoin(
@@ -31,6 +45,9 @@ export default async function IndentPage() {
       indentItemT,
       and(eq(indentItemT.indent_id, indentMasterT.id), eq(indentItemT.display, "Y"))
     )
+    .leftJoin(stockBookMasterT, eq(indentItemT.stock_book_master_id, stockBookMasterT.id))
+    .leftJoin(groupItemNameMasterT, eq(indentItemT.group_id, groupItemNameMasterT.id))
+    .leftJoin(itemMasterT, eq(indentItemT.item_id, itemMasterT.id))
     .where(eq(indentMasterT.display, "Y"))
     .groupBy(
       indentMasterT.id,

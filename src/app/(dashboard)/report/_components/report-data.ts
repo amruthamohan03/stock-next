@@ -4,6 +4,7 @@ import {
   collegeT,
   departmentMasterT,
   indentBookT,
+  groupItemNameMasterT,
   quotationCategoriesT,
   stockBookMasterT,
   stockbookTypeT,
@@ -109,8 +110,10 @@ export async function getReportOptions(): Promise<{
   indentBooks: FilterOption[];
   stockBooks: FilterOption[];
   itemCategories: FilterOption[];
+  itemGroups: FilterOption[];
 }> {
-  const [colleges, depts, types, indentBooks, stockBooks, categories] = await Promise.all([
+  const [colleges, depts, types, indentBooks, stockBooks, categories, groups] =
+    await Promise.all([
     db
       .select({ id: collegeT.id, name: collegeT.college_name })
       .from(collegeT)
@@ -149,6 +152,11 @@ export async function getReportOptions(): Promise<{
       .from(quotationCategoriesT)
       .where(eq(quotationCategoriesT.display, "Y"))
       .orderBy(asc(quotationCategoriesT.category_name)),
+    db
+      .select({ id: groupItemNameMasterT.id, name: groupItemNameMasterT.group_name })
+      .from(groupItemNameMasterT)
+      .where(eq(groupItemNameMasterT.display, "Y"))
+      .orderBy(asc(groupItemNameMasterT.group_name)),
   ]);
 
   return {
@@ -168,6 +176,7 @@ export async function getReportOptions(): Promise<{
       label: b.book_no ? `${b.name} (Book ${b.book_no})` : b.name,
     })),
     itemCategories: categories.map((c) => ({ value: String(c.id), label: c.name })),
+    itemGroups: groups.map((g) => ({ value: String(g.id), label: g.name })),
   };
 }
 

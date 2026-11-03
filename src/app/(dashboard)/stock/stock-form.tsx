@@ -13,7 +13,14 @@ import { FormSection } from "@/components/ui/form-section";
 import { formatDate } from "@/lib/utils";
 
 /** An item in the picker: an existing ledger row, or one still to be created. */
-export type StockBookOption = { key: string; name: string; has_ledger: boolean };
+export type StockBookOption = {
+  key: string;
+  name: string;
+  has_ledger: boolean;
+  /** The item's group, so the picker can be narrowed by group. */
+  group_id: number | null;
+};
+export type GroupOption = { id: number; name: string };
 export type DepartmentOption = { id: number; name: string };
 export type LocationOption = { id: number; name: string };
 export type IndentBookOption = { id: number; name: string; book_no: number | null };
@@ -82,6 +89,7 @@ export default function StockForm({
   locations,
   indentBooks,
   indents,
+  groups,
   initial,
 }: {
   stockBooks: StockBookOption[];
@@ -90,6 +98,7 @@ export default function StockForm({
   locations: LocationOption[];
   indentBooks: IndentBookOption[];
   indents: IndentOption[];
+  groups: GroupOption[];
   initial?: StockInitial;
 }) {
   const router = useRouter();
@@ -97,6 +106,11 @@ export default function StockForm({
 
   const [stockBookId, setStockBookId] = useState(initial?.stock_book_id ?? "");
   const [newLocationId, setNewLocationId] = useState("");
+  // The group narrows the item list; it is not stored, the item carries it.
+  const [groupId, setGroupId] = useState(() => {
+    const picked = stockBooks.find((b) => b.key === (initial?.stock_book_id ?? ""));
+    return picked?.group_id ? String(picked.group_id) : "";
+  });
   const [deptId, setDeptId] = useState(initial?.department_id ?? "");
   const [registerId, setRegisterId] = useState(initial?.stock_book_master_id ?? "");
   const [pageNo, setPageNo] = useState(initial?.stock_book_page_no ?? "");
@@ -125,7 +139,10 @@ export default function StockForm({
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
-  const bookOpts = stockBooks.map((b) => ({ value: b.key, label: b.name }));
+  const groupOpts = groups.map((g) => ({ value: String(g.id), label: g.name }));
+  const bookOpts = stockBooks
+    .filter((b) => !groupId || String(b.group_id ?? "") === groupId)
+    .map((b) => ({ value: b.key, label: b.name }));
   // Picking an item with no ledger row yet means one has to be opened, and a
   // ledger row is item + location, so the location has to be stated.
   const needsLocation = stockBookId.startsWith("item:");
@@ -177,6 +194,7 @@ export default function StockForm({
 
   const reset = () => {
     setStockBookId("");
+    setGroupId("");
     setNewLocationId("");
     setRegisterId("");
     setPageNo("");
@@ -291,13 +309,28 @@ export default function StockForm({
         )}
 
         <FormSection title="Item & Register" hint="what the entry is against">
-          <div className="sm:col-span-2">
+          <div>
+            <Label>Item Group</Label>
+            <SearchableSelect
+              value={groupId}
+              onChange={(v) => {
+                setGroupId(v);
+                // Keep the pair honest: drop an item that is not in the group.
+                if (v && !stockBooks.some((b) => b.key === stockBookId && String(b.group_id ?? "") === v)) {
+                  setStockBookId("");
+                }
+              }}
+              options={groupOpts}
+              placeholder="All groups"
+            />
+          </div>
+          <div>
             <Label>Item <span className="text-red-500">*</span></Label>
             <SearchableSelect
               value={stockBookId}
               onChange={setStockBookId}
               options={bookOpts}
-              placeholder="Select an item"
+              placeholder={bookOpts.length ? "Select an item" : "No items in this group"}
             />
           </div>
           {needsLocation && (

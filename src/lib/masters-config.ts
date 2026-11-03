@@ -248,8 +248,10 @@ export const MASTERS: Record<string, MasterConfig> = {
   },
   item: {
     table: itemMasterT,
-    writable: ["item_name", "item_code", "category_id", "tax_not_tax", "display"],
-    numeric: ["category_id"],
+    writable: ["item_name", "item_code", "category_id", "group_id", "tax_not_tax", "display"],
+    numeric: ["category_id", "group_id"],
+    // A blank group means "not filed yet", not group zero.
+    nullWhenBlank: ["group_id"],
   },
   group: {
     table: groupItemNameMasterT,
