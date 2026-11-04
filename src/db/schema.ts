@@ -1062,6 +1062,34 @@ export const stockTransferDetailT = pgTable("stock_transfer_detail_t", {
   display: varchar({ length: 1 }).notNull().default("Y"),
 });
 
+// A record of an indent line or stock entry being re-entered in a different
+// stock register (stock_book_master_t). New to the Next port. Moving the whole
+// quantity repoints the line itself; moving part of it splits the line and
+// `new_record_id` is the split-off copy that now sits in the target book.
+export const stockBookMoveT = pgTable("stock_book_move_t", {
+  id: pk(),
+  source_type: varchar({ length: 10 }).notNull(), // INDENT | STOCK
+  // MOVE: re-entered in to_stock_book_master_id. REMOVE: taken out of its
+  // register altogether, so the target book and page are null.
+  action: varchar({ length: 10 }).notNull().default("MOVE"),
+  indent_id: integer().notNull(),
+  // indent_item_t.id for INDENT, stock_transaction_t.id for STOCK.
+  source_record_id: integer().notNull(),
+  new_record_id: integer(),
+  item_id: integer().notNull(),
+  qty_moved: integer().notNull(),
+  from_stock_book_master_id: integer(),
+  from_page_no: integer(),
+  to_stock_book_master_id: integer(),
+  to_page_no: integer(),
+  moved_date: date().notNull(),
+  moved_by: integer().notNull(),
+  remarks: varchar({ length: 255 }),
+  created_by: integer(),
+  created_at: createdAt(),
+  display: varchar({ length: 1 }).default("Y"),
+});
+
 /* ------------------------------------------------------------------ customs (legacy, unused by UI) */
 
 export const licensesT = pgTable("licenses_t", {

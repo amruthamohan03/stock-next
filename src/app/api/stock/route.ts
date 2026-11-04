@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { and, asc, eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { getSession } from "@/lib/session";
+import { recompute, type Tx } from "@/lib/stock-ledger";
 import { stockTransactionT, stockBookT, issuedToMasterT } from "@/db/schema";
 
 // Supported single-book transaction types. TRANSFER is intentionally out of
@@ -50,46 +51,12 @@ function splitQty(type: string, qty: number): { receipt: number; issue: number }
 }
 
 /**
- * Recompute the running balance for every visible transaction of a stock book
- * (ordered by date, then id) and store the final figure on the stock book.
- * Called after any create / edit / delete so the ledger stays consistent.
- */
-async function recompute(
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
-  bookId: number
-) {
-  const rows = await tx
-    .select({
-      id: stockTransactionT.id,
-      receipt_qty: stockTransactionT.receipt_qty,
-      issue_qty: stockTransactionT.issue_qty,
-    })
-    .from(stockTransactionT)
-    .where(and(eq(stockTransactionT.stock_book_id, bookId), eq(stockTransactionT.display, "Y")))
-    .orderBy(asc(stockTransactionT.transaction_date), asc(stockTransactionT.id));
-
-  let running = 0;
-  for (const r of rows) {
-    running += (r.receipt_qty ?? 0) - (r.issue_qty ?? 0);
-    await tx
-      .update(stockTransactionT)
-      .set({ balance_qty: running })
-      .where(eq(stockTransactionT.id, r.id));
-  }
-
-  await tx
-    .update(stockBookT)
-    .set({ current_balance: running, updated_at: new Date() })
-    .where(eq(stockBookT.id, bookId));
-}
-
-/**
  * The ledger row for an item at a location, created if this is the first entry
  * for it. An item only ever gets one row per location, so a second entry for
  * the same pair reuses it rather than splitting the running balance in two.
  */
 async function ledgerRowFor(
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  tx: Tx,
   itemId: number,
   locationId: number,
   userId: number

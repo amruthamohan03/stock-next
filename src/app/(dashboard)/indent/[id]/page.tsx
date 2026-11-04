@@ -16,7 +16,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { buttonClasses } from "@/components/ui/button";
 import { formatDate } from "@/lib/utils";
-import { Pencil, ArrowLeft, Package, Hash, Receipt } from "lucide-react";
+import { Pencil, Package, Hash, Receipt } from "lucide-react";
 import { StatusBadge } from "@/components/ui/status-badge";
 import BillAttachment from "../bill-attachment";
 
@@ -106,12 +106,6 @@ export default async function IndentViewPage({
               </p>
             </div>
             <div className="flex shrink-0 gap-2">
-              <Link
-                href="/indent"
-                className={buttonClasses({ variant: "outline", size: "sm" })}
-              >
-                <ArrowLeft className="h-4 w-4" /> Back
-              </Link>
               <Link
                 href={`/indent/${header.id}/edit`}
                 className={buttonClasses({ variant: "secondary", size: "sm" })}

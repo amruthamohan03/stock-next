@@ -133,12 +133,6 @@ export default async function StudyMaterialDetailPage({
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <Link
-              href="/study-material"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-1.5 text-sm font-medium backdrop-blur-sm transition-colors hover:bg-white/25"
-            >
-              <ArrowLeft className="h-4 w-4" /> Back
-            </Link>
-            <Link
               href={`/study-material/${m.id}/edit`}
               className="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-1.5 text-sm font-medium backdrop-blur-sm transition-colors hover:bg-white/25"
             >

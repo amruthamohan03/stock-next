@@ -2,7 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { eq, asc } from "drizzle-orm";
 import { db } from "@/db";
 import { getSession } from "@/lib/session";
-import { indentMasterT, indentItemT } from "@/db/schema";
+import { indentMasterT, indentItemT, stockBookMasterT } from "@/db/schema";
+import { defaultStockBookId } from "@/lib/stock-books";
 
 // Create a new indent (header + line items) — ports the PHP IndentController save.
 type ItemPayload = {
@@ -25,6 +26,28 @@ const numOrNull = (v: unknown) => {
   const n = Number(v);
   return v === "" || v === undefined || v === null || Number.isNaN(n) ? null : n;
 };
+
+/**
+ * A line with a stock-book page but no book goes into the default register
+ * (Computer Stock Register). The form fills this in too; this covers any
+ * request that skips it.
+ */
+async function withDefaultBook(items: ItemPayload[]) {
+  if (!items.some((it) => numOrNull(it.sb_page) !== null && !numOrNull(it.stock_book_master_id))) {
+    return items;
+  }
+  const books = await db
+    .select({ id: stockBookMasterT.id, name: stockBookMasterT.book_name })
+    .from(stockBookMasterT)
+    .where(eq(stockBookMasterT.display, "Y"));
+  const fallback = defaultStockBookId(books);
+  if (!fallback) return items;
+  return items.map((it) =>
+    numOrNull(it.sb_page) !== null && !numOrNull(it.stock_book_master_id)
+      ? { ...it, stock_book_master_id: fallback }
+      : it
+  );
+}
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -55,7 +78,9 @@ export async function POST(req: NextRequest) {
   if (!indentDate) return NextResponse.json({ success: false, message: "Date is required" }, { status: 400 });
 
   // Keep only rows that have an item selected and a quantity.
-  const items = (body.items ?? []).filter((it) => it.item_id && Number(it.qty) > 0);
+  const items = await withDefaultBook(
+    (body.items ?? []).filter((it) => it.item_id && Number(it.qty) > 0)
+  );
   if (items.length === 0)
     return NextResponse.json(
       { success: false, message: "Add at least one item with a quantity" },
@@ -144,7 +169,9 @@ export async function PUT(req: NextRequest) {
   if (!indentNo) return NextResponse.json({ success: false, message: "Indent No is required" }, { status: 400 });
   if (!indentDate) return NextResponse.json({ success: false, message: "Date is required" }, { status: 400 });
 
-  const items = (body.items ?? []).filter((it) => it.item_id && Number(it.qty) > 0);
+  const items = await withDefaultBook(
+    (body.items ?? []).filter((it) => it.item_id && Number(it.qty) > 0)
+  );
   if (items.length === 0)
     return NextResponse.json(
       { success: false, message: "Add at least one item with a quantity" },

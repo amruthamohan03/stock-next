@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, asc, eq } from "drizzle-orm";
-import { ArrowLeft, Pencil, Paperclip } from "lucide-react";
+import { Pencil, Paperclip } from "lucide-react";
 import { db } from "@/db";
 import { documentRemarkT, documentT, usersT } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -72,9 +72,6 @@ export default async function DocumentViewPage({
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <Link href="/report/document" className={buttonClasses({ variant: "outline", size: "sm" })}>
-            <ArrowLeft className="h-4 w-4" /> Back
-          </Link>
           {/* A final document is read-only, so there is nothing to edit into. */}
           {!locked && (
             <Link

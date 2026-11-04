@@ -92,7 +92,7 @@ export function FilterRow({
     const content = clearPlaced ? null : clear;
     clearPlaced = true;
     return (
-      <th key={key} className="!py-2">
+      <th key={key} className={`!py-2 ${key === "_actions" || key === "_trail0" ? "col-pin" : ""}`}>
         {content}
       </th>
     );

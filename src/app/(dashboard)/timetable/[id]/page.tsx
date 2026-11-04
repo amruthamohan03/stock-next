@@ -12,7 +12,7 @@ import {
 } from "@/db/schema";
 import { Card, CardContent } from "@/components/ui/card";
 import { buttonClasses } from "@/components/ui/button";
-import { ArrowLeft, Pencil } from "lucide-react";
+import { Pencil } from "lucide-react";
 import PrintButton from "../../report/_components/print-button";
 
 const DAYS = [
@@ -85,9 +85,6 @@ export default async function TimetableViewPage({
       <div className="no-print flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-lg font-semibold text-fg">{header.title}</h1>
         <div className="flex gap-2">
-          <Link href="/timetable" className={buttonClasses({ variant: "outline", size: "sm" })}>
-            <ArrowLeft className="h-4 w-4" /> Back
-          </Link>
           <Link href={`/timetable/${header.id}/edit`} className={buttonClasses({ variant: "secondary", size: "sm" })}>
             <Pencil className="h-4 w-4" /> Edit
           </Link>

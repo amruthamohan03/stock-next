@@ -21,11 +21,11 @@ export function FormSection({
   return (
     <section className="space-y-3">
       <div className="flex items-center gap-3">
-        <h3 className="shrink-0 text-[11px] font-semibold uppercase tracking-wider text-muted">
+        <h3 className="flex shrink-0 items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-accent-fg before:block before:h-3 before:w-1 before:rounded-full before:bg-gradient-to-b before:from-accent before:to-accent-2">
           {title}
         </h3>
         {hint && <span className="shrink-0 text-xs text-faint">{hint}</span>}
-        <span className="h-px flex-1 bg-line" />
+        <span className="h-px flex-1 bg-gradient-to-r from-line to-transparent" />
       </div>
       <div className={className ?? "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"}>
         {children}

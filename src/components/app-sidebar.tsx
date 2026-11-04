@@ -85,6 +85,31 @@ function iconFor(node: MenuNode): LucideIcon {
   return Folder;
 }
 
+/** True on a menu entry's page and on its sub-pages (/indent/12, /indent/12/edit). */
+function isAt(pathname: string, url: string | null) {
+  const route = toRoute(url);
+  return route !== "#" && (pathname === route || pathname.startsWith(route + "/"));
+}
+
+/**
+ * Each main menu gets its own colour, cycled in menu order, so the sidebar can
+ * be scanned by colour as well as by label. Opacity tints read on dark and
+ * light alike; `dot` marks that group's sub-menu items.
+ */
+const TONES = [
+  { chip: "bg-indigo-500/15 text-indigo-500", dot: "bg-indigo-500" },
+  { chip: "bg-emerald-500/15 text-emerald-500", dot: "bg-emerald-500" },
+  { chip: "bg-amber-500/15 text-amber-500", dot: "bg-amber-500" },
+  { chip: "bg-sky-500/15 text-sky-500", dot: "bg-sky-500" },
+  { chip: "bg-rose-500/15 text-rose-500", dot: "bg-rose-500" },
+  { chip: "bg-violet-500/15 text-violet-500", dot: "bg-violet-500" },
+  { chip: "bg-cyan-500/15 text-cyan-500", dot: "bg-cyan-500" },
+  { chip: "bg-orange-500/15 text-orange-500", dot: "bg-orange-500" },
+  { chip: "bg-fuchsia-500/15 text-fuchsia-500", dot: "bg-fuchsia-500" },
+  { chip: "bg-teal-500/15 text-teal-500", dot: "bg-teal-500" },
+] as const;
+type Tone = (typeof TONES)[number];
+
 export default function AppSidebar({
   menu,
   settings = DEFAULT_SETTINGS,
@@ -96,7 +121,7 @@ export default function AppSidebar({
   // Accordion: exactly one main menu is expanded at a time.
   const routeGroupId =
     menu.find(
-      (n) => n.children.length > 0 && n.children.some((c) => pathname === toRoute(c.url))
+      (n) => n.children.length > 0 && n.children.some((c) => isAt(pathname, c.url))
     )?.id ?? null;
   const [openId, setOpenId] = useState<number | null>(routeGroupId);
 
@@ -107,18 +132,18 @@ export default function AppSidebar({
 
   return (
     <aside
-      className="hidden w-64 shrink-0 flex-col border-r border-line bg-card md:flex"
+      className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-line md:flex"
       // Blank settings leave these undefined, so the theme's own colours win.
       style={{
-        background: "var(--sidebar-bg, var(--card))",
+        background: "var(--sidebar-bg, var(--sidebar-grad))",
         color: "var(--sidebar-text, var(--fg))",
       }}
     >
-      <div className="flex h-14 items-center gap-2.5 border-b border-line px-5">
+      <div className="flex h-16 items-center gap-3 border-b border-line px-5">
         <div
           className={cn(
-            "flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl shadow-sm",
-            settings.logo_id ? "bg-elevated" : "bg-brand-grad text-white"
+            "flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl shadow-lg shadow-accent/25",
+            settings.logo_id ? "bg-elevated" : "bg-accent-duo text-white"
           )}
         >
           {settings.logo_id ? (
@@ -133,17 +158,23 @@ export default function AppSidebar({
           )}
         </div>
         <div className="min-w-0 leading-tight">
-          <div className="truncate text-sm font-semibold">{settings.project_name}</div>
+          <div className="truncate text-[15px] font-extrabold tracking-tight">
+            {settings.project_name}
+          </div>
           {settings.tagline && (
-            <div className="truncate text-[11px] opacity-60">{settings.tagline}</div>
+            <div className="truncate text-[11px] font-medium opacity-60">{settings.tagline}</div>
           )}
         </div>
       </div>
-      <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
-        {menu.map((node) => (
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+        <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.14em] opacity-45">
+          Menu
+        </p>
+        {menu.map((node, i) => (
           <MenuItem
             key={node.id}
             node={node}
+            tone={TONES[i % TONES.length]}
             open={openId === node.id}
             onToggle={() => setOpenId((cur) => (cur === node.id ? null : node.id))}
           />
@@ -155,80 +186,137 @@ export default function AppSidebar({
 
 function MenuItem({
   node,
+  tone,
   open,
   onToggle,
 }: {
   node: MenuNode;
+  tone: Tone;
   open: boolean;
   onToggle: () => void;
 }) {
   const pathname = usePathname();
-  const hasChildren = node.children.length > 0;
-  const route = toRoute(node.url);
-  const active = pathname === route;
-
   const Icon = iconFor(node);
 
-  if (hasChildren) {
-    return (
-      <div>
-        <button
-          onClick={onToggle}
-          className={cn(
-            "flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-elevated hover:text-fg",
-            open ? "bg-elevated text-fg" : "text-muted"
-          )}
-        >
-          <span className="flex items-center gap-2.5">
-            <Icon className="h-[1.15rem] w-[1.15rem] shrink-0 text-muted" />
-            {node.text}
-          </span>
-          <ChevronDown
-            className={cn("h-4 w-4 text-faint transition-transform", open && "rotate-180")}
-          />
-        </button>
-        {open && (
-          <div className="ml-4 mt-0.5 space-y-0.5 border-l border-line pl-2">
-            {node.children.map((child) => (
-              <Leaf key={child.id} node={child} active={pathname === toRoute(child.url)} />
-            ))}
-          </div>
-        )}
-      </div>
-    );
+  if (node.children.length === 0) {
+    return <Leaf node={node} tone={tone} active={isAt(pathname, node.url)} />;
   }
 
-  return <Leaf node={node} active={active} />;
+  const holdsActive = node.children.some((c) => isAt(pathname, c.url));
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className={cn(
+          "group flex w-full items-center justify-between gap-2 rounded-xl px-2 py-1.5 text-sm font-semibold transition-colors",
+          open || holdsActive ? "bg-elevated/80 text-fg" : "text-muted hover:bg-elevated/60 hover:text-fg"
+        )}
+      >
+        <span className="flex min-w-0 items-center gap-3">
+          <IconChip icon={Icon} className={tone.chip} />
+          <span className="truncate">{node.text}</span>
+        </span>
+        <ChevronDown
+          className={cn(
+            "h-4 w-4 shrink-0 text-faint transition-transform duration-200",
+            open && "rotate-180 text-fg"
+          )}
+        />
+      </button>
+      <div className="nav-collapse" data-open={open}>
+        <div>
+          <div className="relative ml-[1.45rem] mt-1 space-y-0.5 border-l border-line py-0.5 pl-3">
+            {node.children.map((child) => (
+              <Leaf
+                key={child.id}
+                node={child}
+                tone={tone}
+                active={isAt(pathname, child.url)}
+                tabIndex={open ? undefined : -1}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
-function Leaf({ node, active }: { node: MenuNode; active: boolean }) {
+function IconChip({ icon: Icon, className }: { icon: LucideIcon; className: string }) {
+  return (
+    <span
+      className={cn(
+        "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-transform group-hover:scale-105",
+        className
+      )}
+    >
+      <Icon className="h-[1.05rem] w-[1.05rem]" />
+    </span>
+  );
+}
+
+function Leaf({
+  node,
+  tone,
+  active,
+  tabIndex,
+}: {
+  node: MenuNode;
+  tone: Tone;
+  active: boolean;
+  /** -1 while the parent group is collapsed, so hidden links aren't tabbable. */
+  tabIndex?: number;
+}) {
   const route = toRoute(node.url);
   const ready = IMPLEMENTED.has(route);
-  // Top-level leaves (e.g. Dashboard) are "main menus" → show their icon.
+  // Top-level leaves (e.g. Dashboard) are "main menus" → icon chip; sub-menus get a dot.
   const topLevel = node.level === 0;
   const Icon = iconFor(node);
+
+  if (topLevel) {
+    return (
+      <Link
+        href={route}
+        tabIndex={tabIndex}
+        className={cn(
+          "group flex items-center gap-3 rounded-xl px-2 py-1.5 text-sm font-semibold transition-all",
+          active
+            ? "bg-accent-duo text-white shadow-lg shadow-accent/30"
+            : "text-muted hover:bg-elevated/60 hover:text-fg",
+          !ready && !active && "opacity-60"
+        )}
+        title={ready ? undefined : "Module not yet ported"}
+      >
+        <IconChip icon={Icon} className={active ? "bg-white/20 text-white" : tone.chip} />
+        <span className="truncate">{node.text}</span>
+      </Link>
+    );
+  }
 
   return (
     <Link
       href={route}
+      tabIndex={tabIndex}
       className={cn(
-        "group flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors",
+        "group relative flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors",
         active
-          ? "bg-accent-soft font-medium text-accent-fg"
-          : "text-muted hover:bg-elevated hover:text-fg",
-        !ready && !active && "text-faint"
+          ? "bg-accent-soft font-semibold text-accent-fg"
+          : "text-muted hover:bg-elevated/60 hover:text-fg",
+        !ready && !active && "opacity-55"
       )}
       title={ready ? undefined : "Module not yet ported"}
     >
-      {/* Icon only for main (top-level) menus; sub-menus show just the label. */}
-      {topLevel && (
-        <Icon
-          className={cn(
-            "h-[1.15rem] w-[1.15rem] shrink-0",
-            active ? "text-accent-fg" : "text-muted group-hover:text-fg"
-          )}
-        />
-      )}
+      {/* Sits on the group's rail line; grows and glows for the current page. */}
+      <span
+        className={cn(
+          "absolute -left-[1.03rem] top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full transition-all",
+          active
+            ? "h-2 w-2 bg-accent ring-4 ring-accent/20"
+            : cn(tone.dot, "opacity-40 group-hover:opacity-90")
+        )}
+      />
       <span className="truncate">{node.text}</span>
     </Link>
   );

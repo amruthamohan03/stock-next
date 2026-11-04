@@ -74,7 +74,12 @@ export default function DataTable<T extends { id: number | string }>({
             <thead>
               <tr>
                 {view.visibleColumns.map((c) => (
-                  <th key={c.key} className={c.align === "right" ? "text-right" : ""}>
+                  <th
+                    key={c.key}
+                    className={`${c.align === "right" ? "text-right" : ""} ${
+                      c.key === "_actions" ? "col-pin" : ""
+                    }`}
+                  >
                     {c.label}
                   </th>
                 ))}
@@ -105,7 +110,7 @@ export default function DataTable<T extends { id: number | string }>({
                         key={c.key}
                         className={`text-muted ${
                           c.align === "right" ? "num text-right" : ""
-                        } ${c.className ?? ""}`}
+                        } ${c.key === "_actions" ? "col-pin" : ""} ${c.className ?? ""}`}
                       >
                         {cellText(c, row, rowIndex)}
                       </td>

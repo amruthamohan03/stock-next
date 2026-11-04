@@ -19,7 +19,6 @@ import {
   groupItemNameMasterT,
 } from "@/db/schema";
 import { getSession } from "@/lib/session";
-import { Card, CardContent } from "@/components/ui/card";
 
 async function count(table: PgTable) {
   const rows = await db.select({ n: sql<number>`count(*)::int` }).from(table);
@@ -40,39 +39,47 @@ export default async function DashboardPage() {
     ]);
 
   const cards = [
-    { label: "Items", value: items, icon: Package, href: "/item", color: "bg-brand-500/15 text-brand-400" },
-    { label: "Item Groups", value: groups, icon: Layers, href: "/item", color: "bg-violet-500/15 text-violet-400" },
-    { label: "Indents", value: indents, icon: ClipboardList, href: "/indent", color: "bg-amber-500/15 text-amber-400" },
-    { label: "Stock Transactions", value: transactions, icon: ArrowLeftRight, href: "/stock", color: "bg-emerald-500/15 text-emerald-400" },
-    { label: "Stock Book Entries", value: stockBooks, icon: Boxes, href: "/stock", color: "bg-cyan-500/15 text-cyan-400" },
-    { label: "Departments", value: departments, icon: Building2, href: "/department", color: "bg-rose-500/15 text-rose-400" },
+    { label: "Items", value: items, icon: Package, href: "/item", grad: "grad-blue" },
+    { label: "Item Groups", value: groups, icon: Layers, href: "/item", grad: "grad-violet" },
+    { label: "Indents", value: indents, icon: ClipboardList, href: "/indent", grad: "grad-amber" },
+    { label: "Stock Transactions", value: transactions, icon: ArrowLeftRight, href: "/stock", grad: "grad-green" },
+    { label: "Stock Book Entries", value: stockBooks, icon: Boxes, href: "/stock", grad: "grad-cyan" },
+    { label: "Departments", value: departments, icon: Building2, href: "/department", grad: "grad-rose" },
   ];
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-fg">
-          Welcome back, {session?.fullName ?? "User"}
+      <div className="bg-accent-duo relative overflow-hidden rounded-2xl px-6 py-6 text-white shadow-lg shadow-accent/20">
+        {/* Soft rings for depth; purely decorative. */}
+        <span className="pointer-events-none absolute -right-10 -top-16 h-48 w-48 rounded-full bg-white/10" />
+        <span className="pointer-events-none absolute -bottom-20 right-24 h-40 w-40 rounded-full bg-white/10" />
+        <p className="relative text-xs font-semibold uppercase tracking-[0.18em] text-white/70">
+          Dashboard
+        </p>
+        <h1 className="relative mt-1 text-2xl font-extrabold tracking-tight">
+          Welcome back, {session?.fullName ?? "User"} 👋
         </h1>
-        <p className="text-sm text-muted">
+        <p className="relative mt-1 text-sm text-white/80">
           Here&apos;s an overview of your inventory system.
         </p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {cards.map((c) => (
-          <Link key={c.label} href={c.href} className="group">
-            <Card className="transition-all duration-200 hover:-translate-y-0.5 hover:border-accent hover:shadow-md">
-              <CardContent className="flex items-center gap-4">
-                <span className={`flex h-12 w-12 items-center justify-center rounded-xl ${c.color} transition-transform group-hover:scale-105`}>
-                  <c.icon className="h-6 w-6" />
-                </span>
-                <div>
-                  <div className="text-2xl font-bold text-fg">{c.value}</div>
-                  <div className="text-sm text-muted">{c.label}</div>
-                </div>
-              </CardContent>
-            </Card>
+          <Link
+            key={c.label}
+            href={c.href}
+            className={`group relative flex items-center gap-4 overflow-hidden rounded-2xl p-5 text-white shadow-lg transition-all duration-200 hover:-translate-y-1 hover:shadow-xl ${c.grad}`}
+          >
+            <span className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-white/15 transition-transform duration-300 group-hover:scale-125" />
+            <span className="pointer-events-none absolute -bottom-12 right-10 h-24 w-24 rounded-full bg-white/10" />
+            <span className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/20 ring-1 ring-white/30 backdrop-blur-sm transition-transform group-hover:scale-110">
+              <c.icon className="h-6 w-6" />
+            </span>
+            <div className="relative">
+              <div className="text-3xl font-extrabold tracking-tight tabular-nums">{c.value}</div>
+              <div className="text-sm font-medium text-white/85">{c.label}</div>
+            </div>
           </Link>
         ))}
       </div>

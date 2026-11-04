@@ -137,12 +137,6 @@ export default async function FdpDetailPage({ params }: { params: Promise<{ id: 
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <Link
-              href="/fdp"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-1.5 text-sm font-medium backdrop-blur-sm transition-colors hover:bg-white/25"
-            >
-              <ArrowLeft className="h-4 w-4" /> Back
-            </Link>
-            <Link
               href={`/fdp/${r.id}/edit`}
               className="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-1.5 text-sm font-medium backdrop-blur-sm transition-colors hover:bg-white/25"
             >

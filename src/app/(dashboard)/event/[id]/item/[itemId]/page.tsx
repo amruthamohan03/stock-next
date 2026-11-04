@@ -1,10 +1,7 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, asc, eq } from "drizzle-orm";
-import { ArrowLeft } from "lucide-react";
 import { db } from "@/db";
 import { eventDutyT, eventItemT, eventParticipantT, eventT } from "@/db/schema";
-import { buttonClasses } from "@/components/ui/button";
 import PrintButton from "../../../../report/_components/print-button";
 import { formatDate } from "@/lib/utils";
 import { isEventLocked } from "@/lib/event-status";
@@ -100,9 +97,6 @@ export default async function ItemPage({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Link href={`/event/${eventId}`} className={buttonClasses({ variant: "outline", size: "sm" })}>
-            <ArrowLeft className="h-4 w-4" /> Back
-          </Link>
           <PrintButton label="Print sheets" />
         </div>
       </div>
