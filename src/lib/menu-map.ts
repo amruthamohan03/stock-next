@@ -50,6 +50,7 @@ const DIRECT: Record<string, string> = {
   "indent-book": "/indent-book",
   "stock-book": "/stock-book",
   "stock-book-move": "/stock-book-move",
+  chat: "/chat",
   settings: "/settings",
   "application-settings": "/settings",
 };
@@ -95,6 +96,7 @@ export const IMPLEMENTED = new Set<string>([
   "/indent-book",
   "/stock-book",
   "/stock-book-move",
+  "/chat",
   "/settings",
 ]);
 

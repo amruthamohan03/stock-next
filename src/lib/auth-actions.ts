@@ -1,10 +1,7 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
-import { db } from "@/db";
-import { usersT, roleMasterT } from "@/db/schema";
-import { verifyPassword } from "@/lib/password";
+import { authenticate } from "@/lib/auth-user";
 import {
   createSessionToken,
   setSessionCookie,
@@ -25,37 +22,12 @@ export async function loginAction(
     return { error: "Please enter your username and password." };
   }
 
-  const rows = await db
-    .select({
-      id: usersT.id,
-      username: usersT.username,
-      fullName: usersT.full_name,
-      email: usersT.email,
-      password: usersT.password,
-      profileImage: usersT.profile_image,
-      roleId: usersT.role_id,
-      roleName: roleMasterT.role_name,
-    })
-    .from(usersT)
-    .leftJoin(roleMasterT, eq(usersT.role_id, roleMasterT.id))
-    .where(and(eq(usersT.username, username), eq(usersT.display, "Y")))
-    .limit(1);
-
-  const user = rows[0];
-  if (!user || !(await verifyPassword(password, user.password))) {
+  const user = await authenticate(username, password);
+  if (!user) {
     return { error: "Invalid username or password." };
   }
 
-  const token = await createSessionToken({
-    id: user.id,
-    username: user.username,
-    fullName: user.fullName,
-    email: user.email,
-    roleId: user.roleId,
-    roleName: user.roleName ?? "User",
-    profileImage: user.profileImage,
-  }, rememberMe);
-  await setSessionCookie(token, rememberMe);
+  await setSessionCookie(await createSessionToken(user, rememberMe), rememberMe);
 
   redirect("/dashboard");
 }

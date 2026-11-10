@@ -23,7 +23,9 @@ const TONES: Record<string, string> = {
   DRAFT: "bg-slate-500/15 text-slate-500 ring-slate-500/25",
   VERIFIED: "bg-sky-500/15 text-sky-500 ring-sky-500/25",
   SUBMITTED: "bg-emerald-500/15 text-emerald-500 ring-emerald-500/25",
-  // Stock book moves
+  // Stock book moves (and the kind of line on a stock book page)
+  STOCK_ENTRY: "bg-teal-500/15 text-teal-500 ring-teal-500/25",
+  INDENT_ITEM: "bg-indigo-500/15 text-indigo-400 ring-indigo-500/25",
   MOVE: "bg-sky-500/15 text-sky-500 ring-sky-500/25",
   REMOVE: "bg-rose-500/15 text-rose-500 ring-rose-500/25",
   // Master list values

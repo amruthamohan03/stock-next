@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { getSession } from "@/lib/session";
 import { recompute, type Tx } from "@/lib/stock-ledger";
+import { getStockRows } from "@/app/(dashboard)/stock/list";
 import { stockTransactionT, stockBookT, issuedToMasterT } from "@/db/schema";
 
 // Supported single-book transaction types. TRANSFER is intentionally out of
@@ -270,4 +271,40 @@ export async function DELETE(req: NextRequest) {
   } catch (e) {
     return NextResponse.json({ success: false, message: (e as Error).message }, { status: 500 });
   }
+}
+
+/**
+ * The stock ledger as JSON — the mobile app's list screen.
+ *
+ * Searching and paging happen on the server here: the web page hands a block
+ * of rows to `DataTable` and lets the browser do it, but a phone can't hold
+ * the whole ledger.
+ */
+export async function GET(req: NextRequest) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+
+  const sp = req.nextUrl.searchParams;
+  const num = (key: string, fallback: number, max: number) => {
+    const n = Number(sp.get(key));
+    return Number.isFinite(n) && n >= 1 ? Math.min(Math.floor(n), max) : fallback;
+  };
+  const page = num("page", 1, 10_000);
+  const pageSize = num("pageSize", 25, 100);
+
+  const { rows, total } = await getStockRows({
+    search: sp.get("search") ?? "",
+    limit: pageSize,
+    offset: (page - 1) * pageSize,
+  });
+
+  return NextResponse.json({
+    success: true,
+    message: "",
+    page,
+    pageSize,
+    total,
+    hasMore: page * pageSize < total,
+    rows,
+  });
 }

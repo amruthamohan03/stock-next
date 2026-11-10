@@ -3,19 +3,41 @@ import { and, eq, gt, inArray, or } from "drizzle-orm";
 import { db } from "@/db";
 import { getSession } from "@/lib/session";
 import {
-  linesFor,
+  indentItemsOf,
+  lineKey,
   moveIndentLine,
+  moveLineToIndent,
   moveStockEntry,
+  pageEntries,
+  removeStockQty,
+  resolveTargetIndent,
   undoMove,
-  type MoveSource,
+  MoveRefused,
+  type MoveLine,
 } from "@/lib/stock-book-move";
-import { indentMasterT, stockBookMasterT, stockBookMoveT, usersT } from "@/db/schema";
+import {
+  indentBookT,
+  indentMasterT,
+  stockBookMasterT,
+  stockBookMoveT,
+  usersT,
+} from "@/db/schema";
+
+/**
+ * Two ways in:
+ * - INDENT: items of chosen indents (picked by indent book, then indent no /
+ *   date). MOVE puts them on an indent in another indent book; REMOVE takes
+ *   them out of their stock register.
+ * - PAGE: everything on one page of a stock register — indent items written
+ *   there and stock entries recorded there. MOVE re-enters them in another
+ *   register/page; REMOVE takes them out of the stock book.
+ */
+type Mode = "INDENT" | "PAGE";
 
 const fail = (message: string, status = 400) =>
   NextResponse.json({ success: false, message }, { status });
 
-const sourceOf = (v: unknown): MoveSource | null =>
-  v === "INDENT" || v === "STOCK" ? v : null;
+const modeOf = (v: unknown): Mode | null => (v === "INDENT" || v === "PAGE" ? v : null);
 
 const posInt = (v: unknown) => {
   const n = Number(v);
@@ -29,18 +51,45 @@ const idList = (v: unknown): number[] | null => {
   return ids.some((id) => id === null) ? null : [...new Set(ids as number[])];
 };
 
+/** "0" (or empty) means the register's entries with no page number. */
+const pageOf = (v: unknown): number | null | undefined => {
+  if (v === "" || v === null || v === undefined || v === "0" || v === 0) return null;
+  return posInt(v) ?? undefined;
+};
+
+const isoDate = (v: unknown) => {
+  const s = String(v ?? "").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+};
+
+/** The lines a request may act on, or an error message. */
+async function sourceLines(mode: Mode, args: { indent_ids?: unknown; book_id?: unknown; page?: unknown }) {
+  if (mode === "INDENT") {
+    const ids = idList(args.indent_ids);
+    if (!ids?.length) return { error: "Choose at least one indent." } as const;
+    return { lines: await indentItemsOf(ids), indentIds: ids } as const;
+  }
+  const bookId = posInt(args.book_id);
+  const page = pageOf(args.page);
+  if (!bookId) return { error: "Choose a stock book." } as const;
+  if (page === undefined) return { error: "Choose a page number." } as const;
+  return { lines: await pageEntries(bookId, page), indentIds: [] as number[] } as const;
+}
+
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session) return fail("Your session has expired. Please sign in again.", 401);
 
   const params = new URL(req.url).searchParams;
-  const source = sourceOf(params.get("source"));
-  const indentIds = idList(params.get("indent_ids"));
-  if (!source) return fail("Choose whether to move indent items or stock entries.");
-  if (!indentIds?.length) return fail("Choose at least one indent.");
-
-  const lines = await linesFor(source, indentIds);
-  return NextResponse.json({ success: true, message: "", data: lines });
+  const mode = modeOf(params.get("mode"));
+  if (!mode) return fail("Choose indent entry or stock entry.");
+  const src = await sourceLines(mode, {
+    indent_ids: params.get("indent_ids"),
+    book_id: params.get("book_id"),
+    page: params.get("page"),
+  });
+  if ("error" in src) return fail(src.error!);
+  return NextResponse.json({ success: true, message: "", data: src.lines });
 }
 
 export async function POST(req: NextRequest) {
@@ -49,90 +98,141 @@ export async function POST(req: NextRequest) {
 
   const body = (await req.json().catch(() => ({}))) as {
     action?: string;
-    source?: string;
+    mode?: string;
     indent_ids?: unknown;
+    book_id?: unknown;
+    page?: unknown;
     to_book_id?: unknown;
     to_page_no?: unknown;
+    to_indent_book?: unknown;
+    to_indent_no?: unknown;
+    to_indent_date?: unknown;
     moved_date?: string;
     moved_by?: unknown;
     remarks?: string;
-    lines?: { id?: unknown; qty?: unknown }[];
+    lines?: { kind?: unknown; id?: unknown; qty?: unknown }[];
   };
 
-  // REMOVE takes the lines out of their stock book: no target book or page.
+  const mode = modeOf(body.mode);
   const removing = body.action === "REMOVE";
-  const source = sourceOf(body.source);
-  const indentIds = idList(body.indent_ids);
-  const toBook = removing ? null : posInt(body.to_book_id);
-  const toPage =
-    removing || body.to_page_no === "" || body.to_page_no == null ? null : posInt(body.to_page_no);
   const verb = removing ? "remove" : "move";
-  const movedDate = String(body.moved_date ?? "").trim();
+  // Where a move goes: another indent (indent mode) or another register page.
+  const toIndent = mode === "INDENT" && !removing;
+  const toBook = !removing && mode === "PAGE" ? posInt(body.to_book_id) : null;
+  const toPage =
+    !removing && mode === "PAGE" && body.to_page_no !== "" && body.to_page_no != null
+      ? posInt(body.to_page_no)
+      : null;
+  const target = toIndent
+    ? {
+        bookId: posInt(body.to_indent_book),
+        indentNo: String(body.to_indent_no ?? "").trim(),
+        indentDate: isoDate(body.to_indent_date),
+      }
+    : null;
+  const movedDate = isoDate(body.moved_date);
   const movedBy = posInt(body.moved_by);
 
-  if (!source) return fail("Choose whether to move indent items or stock entries.");
-  if (!indentIds?.length) return fail("Choose at least one indent.");
-  if (!removing && !toBook) return fail("Choose the stock book to move to.");
-  if (!removing && body.to_page_no !== "" && body.to_page_no != null && !toPage)
+  if (!mode) return fail("Choose indent entry or stock entry.");
+  if (target && !target.bookId) return fail("Choose the indent book to move to.");
+  if (target && !target.indentNo) return fail("Enter the indent number to move to.");
+  if (target && target.indentNo.length > 50) return fail("The indent number can be up to 50 characters.");
+  if (target && !target.indentDate) return fail("Enter the date of the indent to move to.");
+  if (mode === "PAGE" && !removing && !toBook) return fail("Choose the stock book to move to.");
+  if (mode === "PAGE" && !removing && body.to_page_no !== "" && body.to_page_no != null && !toPage)
     return fail("Page No must be a whole number above zero.");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(movedDate)) return fail(`Enter the date of the ${verb}.`);
+  if (!movedDate) return fail(`Enter the date of the ${verb}.`);
   if (!movedBy) return fail(`Choose who did the ${verb}.`);
 
-  const picked = (body.lines ?? []).map((l) => ({ id: posInt(l.id), qty: posInt(l.qty) }));
+  const picked = (body.lines ?? []).map((l) => ({
+    key: `${l.kind}:${l.id}`,
+    qty: posInt(l.qty),
+  }));
   if (picked.length === 0) return fail(`Tick at least one item to ${verb}.`);
-  if (picked.some((l) => !l.id || !l.qty)) return fail("Each ticked item needs a quantity above zero.");
+  if (picked.some((l) => !l.qty)) return fail("Each ticked item needs a quantity above zero.");
 
-  const [indents, [book], [user], lines] = await Promise.all([
-    db
-      .select({ id: indentMasterT.id })
-      .from(indentMasterT)
-      .where(and(inArray(indentMasterT.id, indentIds), eq(indentMasterT.display, "Y"))),
+  const [src, [book], [indentBook], [user]] = await Promise.all([
+    sourceLines(mode, body),
     toBook
       ? db
           .select({ id: stockBookMasterT.id })
           .from(stockBookMasterT)
           .where(and(eq(stockBookMasterT.id, toBook), eq(stockBookMasterT.display, "Y")))
       : Promise.resolve([{ id: 0 }]),
+    target?.bookId
+      ? db
+          .select({ id: indentBookT.id })
+          .from(indentBookT)
+          .where(and(eq(indentBookT.id, target.bookId), eq(indentBookT.display, "Y")))
+      : Promise.resolve([{ id: 0 }]),
     db.select({ id: usersT.id }).from(usersT).where(eq(usersT.id, movedBy)),
-    linesFor(source, indentIds),
   ]);
-  if (indents.length !== indentIds.length)
-    return fail("One of the chosen indents no longer exists. Reload and try again.", 404);
+  if ("error" in src) return fail(src.error!);
   if (!book) return fail("That stock book no longer exists.", 404);
-  if (!user) return fail("The user chosen in Moved By no longer exists.", 404);
+  if (!indentBook) return fail("That indent book no longer exists.", 404);
+  if (!user) return fail("The user chosen no longer exists.", 404);
+  if (mode === "INDENT") {
+    const live = await db
+      .select({ id: indentMasterT.id })
+      .from(indentMasterT)
+      .where(and(inArray(indentMasterT.id, src.indentIds), eq(indentMasterT.display, "Y")));
+    if (live.length !== src.indentIds.length)
+      return fail("One of the chosen indents no longer exists. Reload and try again.", 404);
+  }
 
-  const byId = new Map(lines.map((l) => [l.id, l]));
+  const byKey = new Map(src.lines.map((l) => [lineKey(l), l]));
+  const chosen: { line: MoveLine; qty: number }[] = [];
   for (const p of picked) {
-    const line = byId.get(p.id!);
-    if (!line) return fail("One of the ticked items is no longer on these indents. Reload and try again.", 409);
+    const line = byKey.get(p.key);
+    if (!line) return fail("One of the ticked items has changed since it was listed. Reload and try again.", 409);
     if (p.qty! > line.qty)
       return fail(`${line.item_name}: only ${line.qty} can be ${verb}d, not ${p.qty}.`);
-    if (removing && line.book_id === null)
+    // An indent item is "in" a stock book only through its register; a stock
+    // entry is always in the stock book, so it can be removed regardless.
+    if (removing && line.kind === "INDENT" && line.book_id === null)
       return fail(`${line.item_name} is not entered in any stock book.`);
-    if (!removing && line.book_id === toBook && line.page_no === toPage)
+    if (toBook && line.book_id === toBook && line.page_no === toPage)
       return fail(`${line.item_name} is already on that page of that book.`);
+    chosen.push({ line, qty: p.qty! });
   }
 
   try {
     await db.transaction(async (tx) => {
-      for (const p of picked) {
-        const line = byId.get(p.id!)!;
-        const newId =
-          source === "INDENT"
-            ? await moveIndentLine(tx, line.id, p.qty!, toBook, toPage)
-            : await moveStockEntry(tx, line.id, p.qty!, toBook, toPage, session.id);
+      // One target indent for the whole request, found or created once.
+      let dest: { id: number; created: boolean } | null = null;
+      for (const { line, qty } of chosen) {
+        let newId: number | null = null;
+        if (target) {
+          dest ??= await resolveTargetIndent(
+            tx,
+            { bookId: target.bookId!, indentNo: target.indentNo, indentDate: target.indentDate! },
+            line.indent_id!,
+            session.id
+          );
+          if (dest.id === line.indent_id)
+            throw new MoveRefused(`${line.item_name} is already on that indent.`);
+          newId = await moveLineToIndent(tx, line.id, qty, dest.id);
+        } else if (line.kind === "INDENT") {
+          newId = await moveIndentLine(tx, line.id, qty, toBook, toPage);
+        } else if (removing) {
+          await removeStockQty(tx, line.id, qty, session.id);
+        } else {
+          newId = await moveStockEntry(tx, line.id, qty, toBook, toPage, session.id);
+        }
         await tx.insert(stockBookMoveT).values({
-          source_type: source,
+          source_type: line.kind,
           action: removing ? "REMOVE" : "MOVE",
           indent_id: line.indent_id,
           source_record_id: line.id,
           new_record_id: newId,
           item_id: line.item_id,
-          qty_moved: p.qty!,
+          qty_moved: qty,
           from_stock_book_master_id: line.book_id,
           from_page_no: line.page_no,
           to_stock_book_master_id: toBook,
           to_page_no: toPage,
+          to_indent_id: dest?.id ?? null,
+          created_indent: dest?.created ? "Y" : "N",
           moved_date: movedDate,
           moved_by: movedBy,
           remarks: body.remarks?.trim() || null,
@@ -141,16 +241,20 @@ export async function POST(req: NextRequest) {
       }
     });
   } catch (e) {
+    // The transaction rolled back, so nothing was saved.
+    if (e instanceof MoveRefused) return fail(e.message, 409);
     console.error("stock-book-move failed", e);
     return fail(`The ${verb} could not be saved. Nothing was changed; please try again.`, 500);
   }
 
-  const count = picked.length;
+  const n = `${chosen.length} ${chosen.length === 1 ? "item" : "items"}`;
   return NextResponse.json({
     success: true,
     message: removing
-      ? `Removed ${count} ${count === 1 ? "item" : "items"} from the stock book.`
-      : `Moved ${count} ${count === 1 ? "item" : "items"} to the new stock book.`,
+      ? `Removed ${n} from the stock book.`
+      : target
+        ? `Moved ${n} to indent ${target.indentNo}.`
+        : `Moved ${n} to the new stock book.`,
   });
 }
 
@@ -243,7 +347,9 @@ export async function DELETE(req: NextRequest) {
     success: true,
     message:
       rec.action === "REMOVE"
-        ? "Record deleted. The item is back in its stock book."
-        : "Record deleted. The item is back in its original stock book.",
+        ? "Record deleted. The removal is undone."
+        : rec.to_indent_id
+          ? "Record deleted. The item is back on its original indent."
+          : "Record deleted. The item is back in its original stock book.",
   });
 }

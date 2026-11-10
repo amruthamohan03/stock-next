@@ -1,0 +1,1 @@
+ALTER TABLE "stock_book_move_t" ALTER COLUMN "indent_id" DROP NOT NULL;

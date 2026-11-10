@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { FileText, PackageOpen, CalendarDays } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import FilterBar, { type FilterField } from "../_components/filter-bar";
 import { ReportTabs, ReportHeader } from "../_components/report-ui";
 import {
@@ -62,7 +63,7 @@ export default async function BookReportPage({
   const from = dateParam(sp, "from");
   const to = dateParam(sp, "to");
 
-  const [{ institutions, departments, indentBooks }, { institution, department }] =
+  const [{ institutions, departments, indentBooks, stockBooks }, { institution, department }] =
     await Promise.all([
     getReportOptions(),
     resolveInstDept(sp),
@@ -107,6 +108,15 @@ export default async function BookReportPage({
       },
       { key: "eq_type", label: "Category", type: "select", options: EQ_TYPE },
       { key: "item_type", label: "Item Type", type: "select", options: ITEM_TYPE_CN },
+      {
+        key: "stock_book",
+        label: "Stock Book",
+        type: "select",
+        multi: true,
+        options: stockBooks,
+        placeholder: "All Stock Books",
+      },
+      { key: "show_removed", label: "Show deleted / moved entries", type: "toggle" },
     ],
     day: [
       ...instDept,
@@ -326,9 +336,27 @@ async function IndentBook({ sp }: { sp: SP }) {
 }
 
 /* ------------------------------------------------------------ Stock Book */
+type LedgerRow = Record<string, unknown> & {
+  /** ENTRY = live line. The rest only appear with "Show deleted / moved". */
+  kind: "ENTRY" | "DELETED" | "REMOVED" | "MOVED";
+};
+
+/** Row tint and badge for the lines that are no longer in the book. */
+const GONE: Record<Exclude<LedgerRow["kind"], "ENTRY">, { row: string; badge: string; label: string }> = {
+  DELETED: { row: "bg-rose-500/10 shadow-[inset_3px_0_0_var(--color-rose-500)]", badge: "REMOVE", label: "Deleted" },
+  REMOVED: { row: "bg-rose-500/10 shadow-[inset_3px_0_0_var(--color-rose-500)]", badge: "REMOVE", label: "Removed" },
+  MOVED: { row: "bg-sky-500/10 shadow-[inset_3px_0_0_var(--color-sky-500)]", badge: "MOVE", label: "Moved" },
+};
+
+const bookPage = (book: unknown, page: unknown) =>
+  book ? `${String(book)}${page != null ? ` · Page ${String(page)}` : ""}` : null;
+
 async function StockBook({ sp }: { sp: SP }) {
   const from = dateParam(sp, "from");
   const to = dateParam(sp, "to");
+  const showGone = one(sp, "show_removed") === "1";
+  // Filters shared by live lines and by the deleted/moved trail, which joins
+  // the same aliases (st, sb, imt) through the original entry.
   const cond = [sql`sb.display='Y'`];
   if (from && to) cond.push(sql`st.transaction_date BETWEEN ${from} AND ${to}`);
   const txn = one(sp, "txn_type");
@@ -341,33 +369,90 @@ async function StockBook({ sp }: { sp: SP }) {
   if (inst) cond.push(sql`st.institution_id=${inst}`);
   const dept = intParam(sp, "dept_id");
   if (dept) cond.push(sql`st.department_id=${dept}`);
+  const books = intListParam(sp, "stock_book");
+  const inBooks = (col: string) =>
+    books.length ? sql`${sql.raw(col)} IN (${sql.join(books.map((b) => sql`${b}`), sql`, `)})` : sql`TRUE`;
+  const where = sql.join(cond, sql` AND `);
 
-  const result = (await db.execute(sql`
-    SELECT st.id, st.stock_book_id,
-           to_char(st.transaction_date,'DD-MM-YYYY') AS transaction_date,
-           st.transaction_type, st.voucher_no,
-           to_char(st.voucher_date,'DD-MM-YYYY') AS voucher_date,
-           st.received_from, st.issued_to,
-           st.receipt_qty, st.issue_qty, st.balance_qty,
-           st.receiver_initial, st.remarks,
-           sb.location, sb.opening_balance,
-           imt.item_name, im_i.indent_no AS indent_ref
-    FROM stock_transaction_t st
+  const entryCols = sql`
+    st.stock_book_id, st.transaction_date::text AS sort_date,
+    to_char(st.transaction_date,'DD-MM-YYYY') AS transaction_date,
+    st.transaction_type, st.voucher_no,
+    to_char(st.voucher_date,'DD-MM-YYYY') AS voucher_date,
+    st.received_from, st.issued_to, st.receiver_initial, st.remarks,
+    sb.location, sb.opening_balance,
+    imt.item_name, im_i.indent_no AS indent_ref`;
+  const entryJoins = sql`
     INNER JOIN stock_book_t sb ON sb.id = st.stock_book_id
     INNER JOIN item_master_t imt ON imt.id = sb.item_id
-    LEFT JOIN indent_master_t im_i ON im_i.id = st.indent_id
-    WHERE ${sql.join(cond, sql` AND `)}
-    ORDER BY st.stock_book_id ASC, st.transaction_date ASC, st.id ASC
-  `)) as unknown as Record<string, unknown>[];
+    LEFT JOIN indent_master_t im_i ON im_i.id = st.indent_id`;
 
-  const books = new Map<number, { head: Record<string, unknown>; rows: Record<string, unknown>[] }>();
-  for (const r of result) {
+  const [entries, trail] = await Promise.all([
+    // Live lines, plus soft-deleted ones (Stock page delete, or a full
+    // "remove from stock book") when the trail is switched on.
+    db.execute(sql`
+      SELECT st.id, ${entryCols},
+             CASE WHEN st.display = 'Y' THEN 'ENTRY' ELSE 'DELETED' END AS kind,
+             st.receipt_qty, st.issue_qty, st.balance_qty,
+             sbm.book_name AS book, st.stock_book_page_no AS page_no,
+             to_char(st.updated_at,'DD-MM-YYYY') AS gone_on,
+             COALESCE(uu.full_name, uu.username) AS gone_by
+      FROM stock_transaction_t st
+      ${entryJoins}
+      LEFT JOIN stock_book_master_t sbm ON sbm.id = st.stock_book_master_id
+      LEFT JOIN users_t uu ON uu.id = st.updated_by
+      WHERE ${where} AND ${inBooks("st.stock_book_master_id")}
+        AND ${showGone ? sql`st.display IN ('Y','N')` : sql`st.display = 'Y'`}
+    `) as unknown as Promise<LedgerRow[]>,
+    // Quantities moved to another register or partly removed, at the place
+    // they were taken from. A full removal already shows as the deleted line
+    // itself, so only its earlier partial removals are listed here.
+    showGone
+      ? (db.execute(sql`
+          SELECT st.id, ${entryCols},
+                 CASE WHEN mv.action = 'MOVE' THEN 'MOVED' ELSE 'REMOVED' END AS kind,
+                 CASE WHEN st.transaction_type = 'ISSUE' THEN 0 ELSE mv.qty_moved END AS receipt_qty,
+                 CASE WHEN st.transaction_type = 'ISSUE' THEN mv.qty_moved ELSE 0 END AS issue_qty,
+                 NULL AS balance_qty,
+                 fb.book_name AS book, mv.from_page_no AS page_no,
+                 tb.book_name AS to_book, mv.to_page_no AS to_page,
+                 to_char(mv.moved_date,'DD-MM-YYYY') AS gone_on,
+                 COALESCE(mu.full_name, mu.username) AS gone_by
+          FROM stock_book_move_t mv
+          INNER JOIN stock_transaction_t st ON st.id = mv.source_record_id
+          ${entryJoins}
+          LEFT JOIN stock_book_master_t fb ON fb.id = mv.from_stock_book_master_id
+          LEFT JOIN stock_book_master_t tb ON tb.id = mv.to_stock_book_master_id
+          LEFT JOIN users_t mu ON mu.id = mv.moved_by
+          WHERE mv.display = 'Y' AND mv.source_type = 'STOCK'
+            AND ${where} AND ${inBooks("mv.from_stock_book_master_id")}
+            AND (mv.action = 'MOVE' OR st.display = 'Y' OR mv.id <> (
+              SELECT max(m2.id) FROM stock_book_move_t m2
+              WHERE m2.source_type = 'STOCK' AND m2.action = 'REMOVE'
+                AND m2.display = 'Y' AND m2.source_record_id = mv.source_record_id))
+        `) as unknown as Promise<LedgerRow[]>)
+      : Promise.resolve([] as LedgerRow[]),
+  ]);
+
+  // Group by ledger, in date order; a trail line sits after the entry it came from.
+  const rank = { ENTRY: 0, DELETED: 0, REMOVED: 1, MOVED: 1 } as const;
+  const rows = [...entries, ...trail].sort(
+    (a, b) =>
+      num(a.stock_book_id) - num(b.stock_book_id) ||
+      String(a.sort_date).localeCompare(String(b.sort_date)) ||
+      num(a.id) - num(b.id) ||
+      rank[a.kind] - rank[b.kind]
+  );
+  const ledgers = new Map<number, { head: LedgerRow; rows: LedgerRow[] }>();
+  const goneCount = { DELETED: 0, REMOVED: 0, MOVED: 0 };
+  for (const r of rows) {
     const id = num(r.stock_book_id);
-    if (!books.has(id)) books.set(id, { head: r, rows: [] });
-    books.get(id)!.rows.push(r);
+    if (!ledgers.has(id)) ledgers.set(id, { head: r, rows: [] });
+    ledgers.get(id)!.rows.push(r);
+    if (r.kind !== "ENTRY") goneCount[r.kind]++;
   }
 
-  if (books.size === 0) return <NoData />;
+  if (ledgers.size === 0) return <NoData />;
 
   const txnColor: Record<string, string> = {
     RECEIPT: "text-emerald-600",
@@ -375,13 +460,30 @@ async function StockBook({ sp }: { sp: SP }) {
     BROUGHT_FORWARD: "text-blue-600",
     ADJUSTMENT: "text-amber-600",
   };
+  const goneTotal = goneCount.DELETED + goneCount.REMOVED + goneCount.MOVED;
 
   return (
     <div className="space-y-6">
-      {[...books.entries()].map(([id, b]) => {
+      {showGone && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-elevated px-3 py-2 text-xs text-muted">
+          {goneTotal === 0 ? (
+            <span>No deleted or moved entries for these filters.</span>
+          ) : (
+            <>
+              <span>Highlighted lines are no longer in the book and don&apos;t count towards the balance:</span>
+              {goneCount.DELETED + goneCount.REMOVED > 0 && (
+                <Badge value="REMOVE" label={`Deleted / removed · ${goneCount.DELETED + goneCount.REMOVED}`} />
+              )}
+              {goneCount.MOVED > 0 && <Badge value="MOVE" label={`Moved to another book · ${goneCount.MOVED}`} />}
+            </>
+          )}
+        </div>
+      )}
+      {[...ledgers.entries()].map(([id, b]) => {
         const page = `ST-${String(id).padStart(2, "0")}`;
         const opening = num(b.head.opening_balance);
-        const last = b.rows.length ? num(b.rows[b.rows.length - 1].balance_qty) : opening;
+        const live = b.rows.filter((r) => r.kind === "ENTRY");
+        const last = live.length ? num(live[live.length - 1].balance_qty) : opening;
         return (
           <div key={id} className="overflow-x-auto rounded-lg border border-line print-avoid-break">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-elevated px-3 py-2">
@@ -391,10 +493,11 @@ async function StockBook({ sp }: { sp: SP }) {
               </div>
               <div className="font-mono text-sm font-bold text-accent">{page}</div>
             </div>
-            <table className="w-full text-sm" style={{ minWidth: "52rem" }}>
+            <table className="w-full text-sm" style={{ minWidth: "60rem" }}>
               <thead>
                 <tr className="border-b border-line text-left text-[11px] uppercase tracking-wider text-muted">
                   <th className="px-3 py-2 font-semibold">Date</th>
+                  <th className="px-3 py-2 font-semibold">Stock Book / Page</th>
                   <th className="px-3 py-2 font-semibold">Voucher / Ref</th>
                   <th className="px-3 py-2 font-semibold">From / To</th>
                   <th className="px-3 py-2 text-center font-semibold">Receipt</th>
@@ -406,7 +509,7 @@ async function StockBook({ sp }: { sp: SP }) {
               </thead>
               <tbody>
                 <tr className="border-b border-line/60 bg-elevated/50 italic">
-                  <td className="px-3 py-1.5" colSpan={2}>Brought forward</td>
+                  <td className="px-3 py-1.5" colSpan={3}>Brought forward</td>
                   <td className="px-3 py-1.5" />
                   <td className="px-3 py-1.5 text-center">{opening || "—"}</td>
                   <td className="px-3 py-1.5" />
@@ -414,12 +517,23 @@ async function StockBook({ sp }: { sp: SP }) {
                   <td className="px-3 py-1.5" colSpan={2} />
                 </tr>
                 {b.rows.map((r, i) => {
+                  const gone = r.kind === "ENTRY" ? null : GONE[r.kind];
+                  const strike = gone ? "line-through decoration-2 opacity-80" : "";
                   const voucher = [r.voucher_no, r.voucher_date, r.indent_ref ? `Indent ${r.indent_ref}` : null]
                     .filter(Boolean)
                     .join(" · ");
+                  const place = bookPage(r.book, r.page_no);
                   return (
-                    <tr key={i} className="border-b border-line/60">
+                    <tr key={i} className={`border-b border-line/60 ${gone?.row ?? ""}`}>
                       <td className="px-3 py-2 whitespace-nowrap">{String(r.transaction_date ?? "")}</td>
+                      <td className="px-3 py-2 text-xs">
+                        {place ?? <span className="text-faint">—</span>}
+                        {r.kind === "MOVED" && (
+                          <div className="font-medium text-sky-500">
+                            → {bookPage(r.to_book, r.to_page) ?? "No stock book"}
+                          </div>
+                        )}
+                      </td>
                       <td className="px-3 py-2 text-xs">{voucher || "—"}</td>
                       <td className="px-3 py-2">
                         {String(r.received_from || r.issued_to || "—")}
@@ -427,16 +541,29 @@ async function StockBook({ sp }: { sp: SP }) {
                           {String(r.transaction_type).replace(/_/g, " ")}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-center font-semibold text-emerald-600">{num(r.receipt_qty) || ""}</td>
-                      <td className="px-3 py-2 text-center font-semibold text-rose-600">{num(r.issue_qty) || ""}</td>
-                      <td className="px-3 py-2 text-center font-bold">{num(r.balance_qty)}</td>
+                      <td className={`px-3 py-2 text-center font-semibold text-emerald-600 ${strike}`}>{num(r.receipt_qty) || ""}</td>
+                      <td className={`px-3 py-2 text-center font-semibold text-rose-600 ${strike}`}>{num(r.issue_qty) || ""}</td>
+                      <td className="px-3 py-2 text-center font-bold">{gone ? <span className="text-faint">—</span> : num(r.balance_qty)}</td>
                       <td className="px-3 py-2 text-xs">{String(r.receiver_initial ?? "")}</td>
-                      <td className="px-3 py-2 text-xs">{String(r.remarks ?? "")}</td>
+                      <td className="px-3 py-2 text-xs">
+                        {gone && (
+                          <div className="mb-0.5 flex flex-wrap items-center gap-1">
+                            <Badge value={gone.badge} label={gone.label} />
+                            {r.gone_on ? (
+                              <span className="text-faint">
+                                {String(r.gone_on)}
+                                {r.gone_by ? ` · ${String(r.gone_by)}` : ""}
+                              </span>
+                            ) : null}
+                          </div>
+                        )}
+                        {String(r.remarks ?? "")}
+                      </td>
                     </tr>
                   );
                 })}
                 <tr className="bg-elevated/50 font-semibold italic">
-                  <td className="px-3 py-1.5" colSpan={2}>Carried over</td>
+                  <td className="px-3 py-1.5" colSpan={3}>Carried over</td>
                   <td className="px-3 py-1.5" colSpan={3} />
                   <td className="px-3 py-1.5 text-center">{last}</td>
                   <td className="px-3 py-1.5" colSpan={2} />

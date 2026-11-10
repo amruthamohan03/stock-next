@@ -28,29 +28,55 @@ export type MoveRow = {
   from_page: number | null;
   to_book: string | null;
   to_page: number | null;
+  /** Set when indent items were moved to an indent in another indent book. */
+  indent_book: string | null;
+  to_indent_no: string | null;
+  to_indent_date: string | null;
+  to_indent_book: string | null;
   moved_by_id: number;
   moved_by: string | null;
   remarks: string | null;
 };
 
-const bookAndPage = (book: string | null, page: number | null) =>
-  book ? `${book}${page != null ? ` (Page No: ${page})` : ""}` : "No stock book";
+/** A place a line was moved from or to: a book name over its page or indent. */
+type Place = { title: string; detail: string | null } | null;
 
-/** Book name over its page number, which keeps the From/To columns narrow. */
-function BookCell({ book, page, empty }: { book: string | null; page: number | null; empty: string }) {
-  if (!book) return <span className="text-faint">{empty}</span>;
+const indentMove = (r: MoveRow) => r.to_indent_no !== null;
+const indentDetail = (no: string | null, date: string | null) =>
+  `Indent No ${no ?? "—"}${date ? ` · ${formatDate(date)}` : ""}`;
+
+const fromPlace = (r: MoveRow): Place =>
+  indentMove(r)
+    ? { title: r.indent_book ?? "Indent book", detail: indentDetail(r.indent_no, r.indent_date) }
+    : r.from_book
+      ? { title: r.from_book, detail: r.from_page != null ? `Page No: ${r.from_page}` : null }
+      : null;
+
+const toPlace = (r: MoveRow): Place =>
+  indentMove(r)
+    ? { title: r.to_indent_book ?? "Indent book", detail: indentDetail(r.to_indent_no, r.to_indent_date) }
+    : r.to_book
+      ? { title: r.to_book, detail: r.to_page != null ? `Page No: ${r.to_page}` : null }
+      : null;
+
+const placeText = (p: Place, empty: string) => (p ? [p.title, p.detail].filter(Boolean).join(" · ") : empty);
+const fromText = (r: MoveRow) => placeText(fromPlace(r), "No stock book");
+const toText = (r: MoveRow) =>
+  r.action === "REMOVE" ? "Removed from stock book" : placeText(toPlace(r), "No stock book");
+
+/** Book name over its page or indent, which keeps the From/To columns narrow. */
+function PlaceCell({ place, empty }: { place: Place; empty: string }) {
+  if (!place) return <span className="text-faint">{empty}</span>;
   return (
     <div>
-      <span className="block text-fg">{book}</span>
-      {page != null && <span className="block text-xs text-faint">Page No: {page}</span>}
+      <span className="block text-fg">{place.title}</span>
+      {place.detail && <span className="block text-xs text-faint">{place.detail}</span>}
     </div>
   );
 }
 
-const typeText = (r: MoveRow) => (r.source_type === "STOCK" ? "Stock entry" : "Indent entry");
-
-const toText = (r: MoveRow) =>
-  r.action === "REMOVE" ? "Removed from stock book" : bookAndPage(r.to_book, r.to_page);
+const typeText = (r: MoveRow) =>
+  r.source_type === "STOCK" ? "Stock entry" : indentMove(r) ? "Indent → indent book" : "Indent entry";
 
 export default function MoveHistory({
   rows,
@@ -96,7 +122,7 @@ export default function MoveHistory({
   };
 
   const undo = async (r: MoveRow) => {
-    const back = bookAndPage(r.from_book, r.from_page);
+    const back = fromText(r);
     const ok = await confirm({
       title: `Delete this ${r.action === "REMOVE" ? "removal" : "move"}?`,
       description: `It is undone: ${r.qty_moved} × ${r.item_name ?? "item"} goes back to ${back}.`,
@@ -148,8 +174,8 @@ export default function MoveHistory({
       {
         key: "from",
         label: "From",
-        value: (r) => bookAndPage(r.from_book, r.from_page),
-        render: (r) => <BookCell book={r.from_book} page={r.from_page} empty="No stock book" />,
+        value: (r) => fromText(r),
+        render: (r) => <PlaceCell place={fromPlace(r)} empty="No stock book" />,
       },
       {
         key: "to",
@@ -159,7 +185,7 @@ export default function MoveHistory({
           r.action === "REMOVE" ? (
             <span className="text-faint">Removed from stock book</span>
           ) : (
-            <BookCell book={r.to_book} page={r.to_page} empty="No stock book" />
+            <PlaceCell place={toPlace(r)} empty="No stock book" />
           ),
       },
       { key: "moved_by", label: "Done By", value: (r) => r.moved_by },
@@ -219,7 +245,7 @@ export default function MoveHistory({
             <p className="rounded-lg bg-elevated px-3 py-2 text-sm text-muted ring-1 ring-line">
               {editing.qty_moved} × <span className="font-medium text-fg">{editing.item_name}</span>
               {" · "}
-              {bookAndPage(editing.from_book, editing.from_page)} → {toText(editing)}
+              {fromText(editing)} → {toText(editing)}
               <span className="mt-1 block text-xs text-faint">
                 The books can&apos;t be changed here. To change them, delete this record (which
                 undoes it) and make a new one.
