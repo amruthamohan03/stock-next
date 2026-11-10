@@ -1,9 +1,9 @@
 import { SignJWT, jwtVerify } from "jose";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 
 export const SESSION_COOKIE = "stock_session";
-const MAX_AGE = 60 * 60 * 8; // 8 hours (default session)
-const REMEMBER_MAX_AGE = 60 * 60 * 24 * 30; // 30 days ("remember me")
+export const SESSION_MAX_AGE = 60 * 60 * 8; // 8 hours (default session)
+export const REMEMBER_MAX_AGE = 60 * 60 * 24 * 30; // 30 days ("remember me")
 
 export type SessionUser = {
   id: number;
@@ -29,7 +29,7 @@ export async function createSessionToken(
   user: SessionUser,
   rememberMe = false
 ): Promise<string> {
-  const maxAge = rememberMe ? REMEMBER_MAX_AGE : MAX_AGE;
+  const maxAge = rememberMe ? REMEMBER_MAX_AGE : SESSION_MAX_AGE;
   return new SignJWT({ ...user })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -56,10 +56,23 @@ export async function verifySessionToken(
   }
 }
 
+/**
+ * Pull a token out of an `Authorization: Bearer …` header.
+ *
+ * The mobile app authenticates this way — a native client has no cookie jar,
+ * so it keeps the JWT from `/api/auth/login` and sends it on every request.
+ * Shared with the middleware so both accept exactly the same thing.
+ */
+export function bearerToken(h: Headers): string | null {
+  const value = h.get("authorization");
+  if (!value?.toLowerCase().startsWith("bearer ")) return null;
+  return value.slice(7).trim() || null;
+}
+
 /** Read the current session (server components / route handlers / actions). */
 export async function getSession(): Promise<SessionUser | null> {
   const store = await cookies();
-  const token = store.get(SESSION_COOKIE)?.value;
+  const token = store.get(SESSION_COOKIE)?.value ?? bearerToken(await headers());
   if (!token) return null;
   return verifySessionToken(token);
 }
@@ -74,7 +87,7 @@ export async function setSessionCookie(
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: rememberMe ? REMEMBER_MAX_AGE : MAX_AGE,
+    maxAge: rememberMe ? REMEMBER_MAX_AGE : SESSION_MAX_AGE,
   });
 }
 

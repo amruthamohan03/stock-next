@@ -1,10 +1,7 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, asc, eq } from "drizzle-orm";
-import { ArrowLeft } from "lucide-react";
 import { db } from "@/db";
 import { eventDutyT, eventItemT, eventT } from "@/db/schema";
-import { buttonClasses } from "@/components/ui/button";
 import PrintButton from "../../../report/_components/print-button";
 import { formatDate } from "@/lib/utils";
 import EventSheetStyle from "../../event-sheet-style";
@@ -114,9 +111,6 @@ export default async function DutyListPage({
       <div className="no-print flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-base font-semibold text-fg">Duty List — {ev.name}</h1>
         <div className="flex items-center gap-2">
-          <Link href={`/event/${ev.id}`} className={buttonClasses({ variant: "outline", size: "sm" })}>
-            <ArrowLeft className="h-4 w-4" /> Back
-          </Link>
           <PrintButton />
         </div>
       </div>

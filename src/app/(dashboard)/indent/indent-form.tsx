@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/toast";
 import { usePrompt } from "@/components/ui/confirm";
 import { apiPost } from "@/lib/api-client";
+import { defaultStockBookId, stockBookLabel } from "@/lib/stock-books";
 import { Plus, Trash2, RotateCcw, Save } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -130,14 +131,10 @@ export default function IndentForm({
   // Same labelling as the indent book picker: name plus the number on the cover.
   const stockBookOpts = useMemo(
     () =>
-      stockBooks.map((b) => ({
-        value: String(b.id),
-        label: b.book_no
-          ? `${b.name} (Book ${b.book_no}${b.volume && b.volume > 1 ? `, Vol ${b.volume}` : ""})`
-          : b.name,
-      })),
+      stockBooks.map((b) => ({ value: String(b.id), label: stockBookLabel(b) })),
     [stockBooks]
   );
+  const defaultBookId = useMemo(() => defaultStockBookId(stockBooks), [stockBooks]);
 
   const bookOpts = useMemo(() => {
     const opts = books.map((b) => ({
@@ -476,7 +473,15 @@ export default function IndentForm({
                         className={numCell}
                         placeholder="Page no"
                         value={r.sb_page}
-                        onChange={(e) => setRow(r.key, { sb_page: e.target.value })}
+                        onChange={(e) =>
+                          setRow(r.key, {
+                            sb_page: e.target.value,
+                            // A page with no book means the default register.
+                            ...(e.target.value && !r.stock_book_master_id && defaultBookId
+                              ? { stock_book_master_id: String(defaultBookId) }
+                              : {}),
+                          })
+                        }
                       />
                     </div>
                   </td>

@@ -151,7 +151,7 @@ export default function CrudTable({
                 {view.visibleColumns.map((c) => (
                   <th key={c.key}>{c.label}</th>
                 ))}
-                <th className="text-right">Actions</th>
+                <th className="col-pin text-right">Actions</th>
               </tr>
               <FilterRow view={view} columns={view.visibleColumns} leading={1} trailing={1} />
             </thead>
@@ -187,7 +187,7 @@ export default function CrudTable({
                       )}
                     </td>
                   ))}
-                  <td>
+                  <td className="col-pin">
                     <TableActions>
                       <TableAction tone="edit" icon={Pencil} onClick={() => openEdit(row)} title="Edit" />
                       <TableAction tone="delete" icon={Trash2} onClick={() => remove(row)} title="Delete" />

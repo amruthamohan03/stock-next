@@ -21,6 +21,7 @@ import {
   date,
   timestamp,
   char,
+  index,
 } from "drizzle-orm/pg-core";
 
 const pk = () => integer().primaryKey().generatedByDefaultAsIdentity();
@@ -1060,6 +1061,69 @@ export const stockTransferDetailT = pgTable("stock_transfer_detail_t", {
   transfer_reason: text(),
   created_at: createdAt(),
   display: varchar({ length: 1 }).notNull().default("Y"),
+});
+
+// A record of an indent line or stock entry being re-entered in a different
+// stock register (stock_book_master_t). New to the Next port. Moving the whole
+// quantity repoints the line itself; moving part of it splits the line and
+// `new_record_id` is the split-off copy that now sits in the target book.
+export const stockBookMoveT = pgTable("stock_book_move_t", {
+  id: pk(),
+  source_type: varchar({ length: 10 }).notNull(), // INDENT | STOCK
+  // MOVE: re-entered in to_stock_book_master_id. REMOVE: taken out of its
+  // register altogether, so the target book and page are null.
+  action: varchar({ length: 10 }).notNull().default("MOVE"),
+  // The indent the line came from; null for a stock entry with no indent.
+  indent_id: integer(),
+  // indent_item_t.id for INDENT, stock_transaction_t.id for STOCK.
+  source_record_id: integer().notNull(),
+  new_record_id: integer(),
+  item_id: integer().notNull(),
+  qty_moved: integer().notNull(),
+  from_stock_book_master_id: integer(),
+  from_page_no: integer(),
+  to_stock_book_master_id: integer(),
+  to_page_no: integer(),
+  // Set when indent items were moved to another indent (in another indent
+  // book) instead of another stock register; `created_indent` = 'Y' when that
+  // indent was created by the move, so undoing it can tidy the empty indent.
+  to_indent_id: integer(),
+  created_indent: varchar({ length: 1 }).notNull().default("N"),
+  moved_date: date().notNull(),
+  moved_by: integer().notNull(),
+  remarks: varchar({ length: 255 }),
+  created_by: integer(),
+  created_at: createdAt(),
+  display: varchar({ length: 1 }).default("Y"),
+});
+
+/* ------------------------------------------------------------------ chat */
+// One-to-one chat between users. New to the Next port. Who may chat is set by
+// role on the "Chat" menu entry (view = use, add = send, delete = delete own).
+export const chatMessageT = pgTable(
+  "chat_message_t",
+  {
+    id: pk(),
+    sender_id: integer().notNull(),
+    recipient_id: integer().notNull(),
+    body: text().notNull(),
+    created_at: createdAt(),
+    // Set when the recipient opens the conversation.
+    read_at: timestamp({ withTimezone: false }),
+    display: varchar({ length: 1 }).notNull().default("Y"),
+  },
+  (t) => [
+    // A conversation is read by its pair of users, newest first.
+    index("chat_message_pair_idx").on(t.sender_id, t.recipient_id, t.id),
+    // Unread badges count by recipient.
+    index("chat_message_unread_idx").on(t.recipient_id, t.read_at),
+  ]
+);
+
+// When each user last had the app open, for the "online" dot.
+export const chatPresenceT = pgTable("chat_presence_t", {
+  user_id: integer().primaryKey(),
+  last_seen_at: timestamp({ withTimezone: false }).notNull().defaultNow(),
 });
 
 /* ------------------------------------------------------------------ customs (legacy, unused by UI) */

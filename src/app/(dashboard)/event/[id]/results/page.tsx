@@ -1,11 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, asc, eq } from "drizzle-orm";
-import { ArrowLeft, Award } from "lucide-react";
+import { Award } from "lucide-react";
 import { db } from "@/db";
 import { eventItemT, eventParticipantT, eventT } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { buttonClasses } from "@/components/ui/button";
 import PrintButton from "../../../report/_components/print-button";
 import { isEventLocked, ordinal } from "@/lib/event-status";
 import EventSheetStyle from "../../event-sheet-style";
@@ -93,9 +92,6 @@ export default async function ResultsPage({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Link href={`/event/${ev.id}`} className={buttonClasses({ variant: "outline", size: "sm" })}>
-            <ArrowLeft className="h-4 w-4" /> Back
-          </Link>
           {placed.length > 0 && <PrintButton label="Print certificates" />}
         </div>
       </div>

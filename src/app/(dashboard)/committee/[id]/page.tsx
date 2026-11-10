@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, asc, eq } from "drizzle-orm";
-import { ArrowLeft, Pencil, CalendarDays, Users, ScrollText, CheckCircle2 } from "lucide-react";
+import { Pencil, CalendarDays, Users, ScrollText, CheckCircle2 } from "lucide-react";
 import { db } from "@/db";
 import {
   attachmentT,
@@ -143,12 +143,6 @@ export default async function CommitteeDetailPage({
             )}
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <Link
-              href="/committee"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-1.5 text-sm font-medium backdrop-blur-sm transition-colors hover:bg-white/25"
-            >
-              <ArrowLeft className="h-4 w-4" /> Back
-            </Link>
             <Link
               href={`/committee/${c.id}/edit`}
               className="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-1.5 text-sm font-medium backdrop-blur-sm transition-colors hover:bg-white/25"

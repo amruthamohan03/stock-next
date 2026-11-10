@@ -14,7 +14,7 @@ import {
 } from "@/db/schema";
 import { Card, CardContent } from "@/components/ui/card";
 import { buttonClasses } from "@/components/ui/button";
-import { ArrowLeft, Pencil } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import PrintButton from "../../report/_components/print-button";
 
@@ -137,9 +137,6 @@ export default async function DaybookViewPage({
           <span className="text-muted">{formatDate(master.document_date)}</span>
         </h1>
         <div className="flex gap-2">
-          <Link href="/daybook" className={buttonClasses({ variant: "outline", size: "sm" })}>
-            <ArrowLeft className="h-4 w-4" /> Back
-          </Link>
           <Link href={`/daybook/${master.id}/edit`} className={buttonClasses({ variant: "secondary", size: "sm" })}>
             <Pencil className="h-4 w-4" /> Edit
           </Link>

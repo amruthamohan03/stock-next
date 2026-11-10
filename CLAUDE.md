@@ -174,6 +174,13 @@ will not theme correctly.
     on dark **and** light use an opacity form (`bg-emerald-500/15
     text-emerald-500 ring-emerald-500/25`), not the `-50/-700` light shades.
   - Vibrant gradient helpers for stat tiles: `grad-blue/green/violet/amber/rose/cyan`.
+  - Second hue `accent-2` (`from-accent to-accent-2`) for gradient accents such
+    as the card-title bar. Anything **filled under white text** (active nav,
+    banners, avatars) uses `bg-accent-duo`, which reads `--fill-a/--fill-b`:
+    on dark those deepen the pale accent so white stays legible. Don't fill
+    with raw `bg-accent` + white text.
+  - Font is Plus Jakarta Sans via `next/font` (`--font-sans`); don't add
+    another font import.
 - **Theme switching**: default dark is set by the no-flash inline script in
   `src/app/layout.tsx` (`data-theme` on `<html>`); the topbar `ThemeToggle`
   (`src/components/theme-toggle.tsx`) flips it and persists to `localStorage`.

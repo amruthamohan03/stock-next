@@ -36,7 +36,7 @@ export function Pagination({
         >
           <ChevronLeft className="h-4 w-4" /> Prev
         </Button>
-        <span className="rounded-lg bg-elevated px-2.5 py-1 text-xs font-medium tabular-nums text-fg ring-1 ring-line">
+        <span className="rounded-lg bg-accent-soft px-2.5 py-1 text-xs font-semibold tabular-nums text-accent-fg ring-1 ring-accent/25">
           Page {Math.min(page, pageCount)} of {pageCount}
         </span>
         <Button

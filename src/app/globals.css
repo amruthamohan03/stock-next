@@ -31,14 +31,18 @@
   --color-accent-soft: var(--accent-soft);
   --color-accent-fg: var(--accent-fg);
   --color-on-accent: var(--on-accent);
+  /* Second hue the accent blends into for gradients (buttons, active nav). */
+  --color-accent-2: var(--accent-2);
+
+  --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
 }
 
 /* ---- DARK (default) ---- */
 :root {
-  --surface: #0a0e17;
-  --card: #111725;
-  --elevated: #1a2234;
-  --line: #232d40;
+  --surface: #090d18;
+  --card: #10172a;
+  --elevated: #182139;
+  --line: #243050;
   --fg: #e6e9ef;
   --muted: #99a3b5;
   --faint: #616d82;
@@ -46,17 +50,28 @@
   --accent-soft: rgba(129, 140, 248, 0.15);
   --accent-fg: #c7d2fe;
   --on-accent: #ffffff;
+  --accent-2: #c084fc;
+  /* Fills that carry white text (primary buttons, active nav, banners). The
+     dark accent is pale so it reads as text on dark surfaces; as a fill it is
+     deepened toward indigo to keep white labels legible (~4.5:1). */
+  --fill-a: color-mix(in srgb, var(--accent) 65%, #312e81);
+  --fill-b: color-mix(in srgb, var(--accent-2) 65%, #312e81);
   --ring: rgba(129, 140, 248, 0.35);
-  --glow: rgba(99, 102, 241, 0.18);
+  --glow: rgba(99, 102, 241, 0.2);
+  --glow-2: rgba(6, 182, 212, 0.1);
+  --glow-3: rgba(217, 70, 239, 0.08);
+  --sidebar-grad: linear-gradient(180deg, #121a33 0%, #0d1328 55%, #0a0f1f 100%);
+  --thead: linear-gradient(180deg, rgba(129, 140, 248, 0.1), rgba(129, 140, 248, 0.04));
+  --zebra: rgba(148, 163, 184, 0.035);
   color-scheme: dark;
 }
 
 /* ---- LIGHT ---- */
 [data-theme="light"] {
-  --surface: #f3f4fb;
+  --surface: #f2f3fb;
   --card: #ffffff;
-  --elevated: #f7f8fc;
-  --line: #e5e8f0;
+  --elevated: #f6f7fd;
+  --line: #e3e6f2;
   --fg: #0f172a;
   --muted: #64748b;
   --faint: #94a3b8;
@@ -64,8 +79,16 @@
   --accent-soft: #eef2ff;
   --accent-fg: #4338ca;
   --on-accent: #ffffff;
+  --accent-2: #9333ea;
+  --fill-a: var(--accent);
+  --fill-b: var(--accent-2);
   --ring: rgba(99, 102, 241, 0.3);
-  --glow: rgba(99, 102, 241, 0.12);
+  --glow: rgba(99, 102, 241, 0.14);
+  --glow-2: rgba(6, 182, 212, 0.1);
+  --glow-3: rgba(236, 72, 153, 0.07);
+  --sidebar-grad: linear-gradient(180deg, #ffffff 0%, #f8f7ff 60%, #f3f1ff 100%);
+  --thead: linear-gradient(180deg, #f3f2ff, #f8f8fe);
+  --zebra: rgba(99, 102, 241, 0.025);
   color-scheme: light;
 }
 
@@ -75,12 +98,13 @@
 
 body {
   background:
-    radial-gradient(1000px 520px at 100% -10%, var(--glow) 0%, transparent 55%),
-    radial-gradient(900px 500px at -10% 110%, var(--glow) 0%, transparent 55%),
+    radial-gradient(1000px 560px at 100% -10%, var(--glow) 0%, transparent 55%),
+    radial-gradient(800px 520px at -10% 110%, var(--glow-2) 0%, transparent 55%),
+    radial-gradient(700px 420px at 55% 45%, var(--glow-3) 0%, transparent 60%),
     var(--surface);
   background-attachment: fixed;
   color: var(--fg);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -103,22 +127,29 @@ body {
 
 /* Vibrant stat-card gradients (Modernize/NextUI style) */
 .grad-blue {
-  background-image: linear-gradient(135deg, #3b82f6, #2563eb);
+  background-image: linear-gradient(135deg, #3b82f6, #4f46e5);
 }
 .grad-green {
-  background-image: linear-gradient(135deg, #22c55e, #16a34a);
+  background-image: linear-gradient(135deg, #10b981, #0d9488);
 }
 .grad-violet {
-  background-image: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  background-image: linear-gradient(135deg, #8b5cf6, #c026d3);
 }
 .grad-amber {
-  background-image: linear-gradient(135deg, #f59e0b, #d97706);
+  background-image: linear-gradient(135deg, #f59e0b, #ea580c);
 }
 .grad-rose {
-  background-image: linear-gradient(135deg, #f43f5e, #e11d48);
+  background-image: linear-gradient(135deg, #f43f5e, #db2777);
 }
 .grad-cyan {
-  background-image: linear-gradient(135deg, #06b6d4, #0891b2);
+  background-image: linear-gradient(135deg, #06b6d4, #2563eb);
+}
+
+/* Accent → second hue. Used for the active nav item, the topbar strip and
+   title markers, so a custom accent from Application Settings carries through. */
+.bg-accent-duo {
+  background-color: var(--fill-a);
+  background-image: linear-gradient(135deg, var(--fill-a), var(--fill-b));
 }
 
 /* Solid accent fill with a little depth. The gradient is a progressive
@@ -147,8 +178,9 @@ body {
     justify-content: center;
     gap: 0.5rem;
     border: 1px solid transparent;
-    border-radius: 0.625rem;
-    font-weight: 500;
+    border-radius: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.005em;
     line-height: 1;
     white-space: nowrap;
     user-select: none;
@@ -202,8 +234,8 @@ body {
   .btn-danger {
     color: #fff;
     box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.2),
-      0 1px 2px rgb(2 6 23 / 0.35);
+      inset 0 1px 0 rgb(255 255 255 / 0.22),
+      0 4px 12px -4px color-mix(in srgb, var(--btn-glow, var(--accent)) 70%, transparent);
   }
   .btn-primary:hover,
   .btn-danger:hover {
@@ -215,28 +247,37 @@ body {
   }
 
   .btn-primary {
-    background-color: var(--accent);
+    background-color: var(--fill-a);
     background-image: linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--accent) 86%, white),
-      var(--accent) 55%,
-      color-mix(in srgb, var(--accent) 86%, black)
+      135deg,
+      color-mix(in srgb, var(--fill-a) 92%, var(--fill-b)),
+      var(--fill-a) 45%,
+      color-mix(in srgb, var(--fill-b) 85%, var(--fill-a))
     );
+    background-size: 160% 100%;
+    background-position: 0% 0%;
+    transition:
+      transform 0.15s ease,
+      box-shadow 0.2s ease,
+      background-position 0.35s ease,
+      filter 0.2s ease;
   }
   .btn-primary:hover {
+    background-position: 100% 0%;
     box-shadow:
       inset 0 1px 0 rgb(255 255 255 / 0.25),
-      0 8px 18px -8px color-mix(in srgb, var(--accent) 90%, transparent);
+      0 10px 22px -8px color-mix(in srgb, var(--accent) 85%, transparent);
   }
 
   .btn-danger {
+    --btn-glow: #e11d48;
     background-color: #dc2626;
-    background-image: linear-gradient(180deg, #f05252, #dc2626 55%, #b91c1c);
+    background-image: linear-gradient(135deg, #fb7185, #e11d48 55%, #be123c);
   }
   .btn-danger:hover {
     box-shadow:
       inset 0 1px 0 rgb(255 255 255 / 0.25),
-      0 8px 18px -8px rgb(220 38 38 / 0.9);
+      0 10px 22px -8px rgb(225 29 72 / 0.85);
   }
 
   /* quiet tones */
@@ -248,8 +289,9 @@ body {
   }
   .btn-outline:hover {
     transform: translateY(-1px);
-    background: var(--elevated);
-    border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+    background: var(--accent-soft);
+    color: var(--accent-fg);
+    border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
   }
 
   .btn-secondary {
@@ -265,7 +307,12 @@ body {
   /* Constructive secondary actions — Add, Next, Prev. Tinted with the accent
      so they read as "do this" without competing with the primary button. */
   .btn-soft {
-    background: var(--accent-soft);
+    background-color: var(--accent-soft);
+    background-image: linear-gradient(
+      135deg,
+      transparent,
+      color-mix(in srgb, var(--accent-2) 12%, transparent)
+    );
     color: var(--accent-fg);
     border-color: color-mix(in srgb, var(--accent) 30%, transparent);
   }
@@ -298,14 +345,15 @@ body {
     top: 0;
     z-index: 1;
     background: var(--elevated);
-    border-bottom: 1px solid var(--line);
+    background-image: var(--thead);
+    border-bottom: 1px solid color-mix(in srgb, var(--accent) 22%, var(--line));
     padding: 0.75rem 1.25rem;
     text-align: left;
     font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
+    font-weight: 700;
+    letter-spacing: 0.07em;
     text-transform: uppercase;
-    color: var(--muted);
+    color: color-mix(in srgb, var(--accent-fg) 55%, var(--muted));
     white-space: nowrap;
   }
   :where(.data-grid tbody td) {
@@ -316,11 +364,38 @@ body {
   :where(.data-grid tbody tr) {
     transition: background-color 0.15s ease;
   }
+  :where(.data-grid tbody tr:nth-child(even) td) {
+    background: var(--zebra);
+  }
   :where(.data-grid tbody tr:hover td) {
     background: var(--accent-soft);
   }
+  /* A bar down the left of the hovered row, so the eye can follow it across. */
+  :where(.data-grid tbody tr:hover td:first-child) {
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
   :where(.data-grid tbody tr:last-child td) {
     border-bottom: 0;
+  }
+  /* The Actions column stays pinned to the right edge of a wide, scrolling
+     table, so row buttons are always in reach. Pinned cells need opaque fills
+     (mixed onto the card colour) or the scrolled columns would show through. */
+  .data-grid .col-pin {
+    position: sticky;
+    right: 0;
+    z-index: 2;
+    background: var(--card);
+    box-shadow: inset 1px 0 0 var(--line), -10px 0 12px -12px rgb(2 6 23 / 0.45);
+  }
+  .data-grid thead .col-pin {
+    z-index: 3;
+    background-color: var(--elevated);
+  }
+  .data-grid tbody tr:nth-child(even) td.col-pin {
+    background: color-mix(in srgb, var(--fg) 2%, var(--card));
+  }
+  .data-grid tbody tr:hover td.col-pin {
+    background: color-mix(in srgb, var(--accent) 13%, var(--card));
   }
   /* Right-aligned numeric columns line up on the digits. */
   .data-grid .num {
@@ -340,8 +415,28 @@ body {
   background-clip: content-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--faint);
+  background: color-mix(in srgb, var(--accent) 55%, var(--faint));
   background-clip: content-box;
+}
+
+/* Sidebar submenu: animate open/closed by transitioning the grid row. */
+.nav-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.25s ease;
+}
+.nav-collapse[data-open="true"] {
+  grid-template-rows: 1fr;
+}
+.nav-collapse > div {
+  overflow: hidden;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-collapse,
+  .btn,
+  .btn-primary {
+    transition: none;
+  }
 }
 
 ::selection {
@@ -424,6 +519,12 @@ body {
     --accent-soft: #eef2ff;
     --accent-fg: #3730a3;
     --on-accent: #ffffff;
+    --color-accent-2: #7c3aed;
+    --accent-2: #7c3aed;
+    --fill-a: #4f46e5;
+    --fill-b: #7c3aed;
+    --thead: none;
+    --zebra: transparent;
     color-scheme: light;
     color: #111 !important;
     background: #fff !important;

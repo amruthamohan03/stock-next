@@ -57,6 +57,8 @@ Existing passwords keep working — the bcrypt hashes are compatible.
 | Stock Books (balance)   | `stock/StockController::stockBooks`    | ✅ Ported (read + summary cards) |
 | Live Stock Register     | `report/LiveController`                | ✅ Ported (read, aggregated) |
 | Sidebar menu / RBAC     | `MenuModel`, role-menu mapping         | ✅ Ported           |
+| Chat (user to user)     | — (new in Next; `chat_message_t`, `chat_presence_t`) | ✅ New: floating widget + `/chat`; access by role on the "Chat" menu (view / add = send / delete own) |
+| Move to Stock Book      | — (new in Next; `stock_book_move_t`)   | ✅ New: moves indent lines / stock entries to another register, partial qty splits the line |
 | Day Book                | `stock/DaybookController`              | ⏳ Placeholder      |
 | Stock entry / transfer  | `stock/StockController` (1.7k LOC)     | ⏳ Read-only for now |
 | Reports (PDF/Excel)     | `report/*` (mpdf, PhpSpreadsheet)      | ⏳ Live stock done; PDF/Excel export not yet |

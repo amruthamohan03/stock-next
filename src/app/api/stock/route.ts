@@ -1,7 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { and, asc, eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { getSession } from "@/lib/session";
+import { recompute, type Tx } from "@/lib/stock-ledger";
+import { getStockRows } from "@/app/(dashboard)/stock/list";
 import { stockTransactionT, stockBookT, issuedToMasterT } from "@/db/schema";
 
 // Supported single-book transaction types. TRANSFER is intentionally out of
@@ -50,46 +52,12 @@ function splitQty(type: string, qty: number): { receipt: number; issue: number }
 }
 
 /**
- * Recompute the running balance for every visible transaction of a stock book
- * (ordered by date, then id) and store the final figure on the stock book.
- * Called after any create / edit / delete so the ledger stays consistent.
- */
-async function recompute(
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
-  bookId: number
-) {
-  const rows = await tx
-    .select({
-      id: stockTransactionT.id,
-      receipt_qty: stockTransactionT.receipt_qty,
-      issue_qty: stockTransactionT.issue_qty,
-    })
-    .from(stockTransactionT)
-    .where(and(eq(stockTransactionT.stock_book_id, bookId), eq(stockTransactionT.display, "Y")))
-    .orderBy(asc(stockTransactionT.transaction_date), asc(stockTransactionT.id));
-
-  let running = 0;
-  for (const r of rows) {
-    running += (r.receipt_qty ?? 0) - (r.issue_qty ?? 0);
-    await tx
-      .update(stockTransactionT)
-      .set({ balance_qty: running })
-      .where(eq(stockTransactionT.id, r.id));
-  }
-
-  await tx
-    .update(stockBookT)
-    .set({ current_balance: running, updated_at: new Date() })
-    .where(eq(stockBookT.id, bookId));
-}
-
-/**
  * The ledger row for an item at a location, created if this is the first entry
  * for it. An item only ever gets one row per location, so a second entry for
  * the same pair reuses it rather than splitting the running balance in two.
  */
 async function ledgerRowFor(
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  tx: Tx,
   itemId: number,
   locationId: number,
   userId: number
@@ -303,4 +271,40 @@ export async function DELETE(req: NextRequest) {
   } catch (e) {
     return NextResponse.json({ success: false, message: (e as Error).message }, { status: 500 });
   }
+}
+
+/**
+ * The stock ledger as JSON — the mobile app's list screen.
+ *
+ * Searching and paging happen on the server here: the web page hands a block
+ * of rows to `DataTable` and lets the browser do it, but a phone can't hold
+ * the whole ledger.
+ */
+export async function GET(req: NextRequest) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+
+  const sp = req.nextUrl.searchParams;
+  const num = (key: string, fallback: number, max: number) => {
+    const n = Number(sp.get(key));
+    return Number.isFinite(n) && n >= 1 ? Math.min(Math.floor(n), max) : fallback;
+  };
+  const page = num("page", 1, 10_000);
+  const pageSize = num("pageSize", 25, 100);
+
+  const { rows, total } = await getStockRows({
+    search: sp.get("search") ?? "",
+    limit: pageSize,
+    offset: (page - 1) * pageSize,
+  });
+
+  return NextResponse.json({
+    success: true,
+    message: "",
+    page,
+    pageSize,
+    total,
+    hasMore: page * pageSize < total,
+    rows,
+  });
 }

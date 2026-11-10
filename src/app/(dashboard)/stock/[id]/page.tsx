@@ -12,9 +12,8 @@ import {
   indentMasterT,
 } from "@/db/schema";
 import { Card, CardContent } from "@/components/ui/card";
-import { buttonClasses } from "@/components/ui/button";
 import { formatDate } from "@/lib/utils";
-import { ArrowLeft, Package, Hash, ArrowRightLeft } from "lucide-react";
+import { Package, Hash, ArrowRightLeft } from "lucide-react";
 
 const typeColor: Record<string, string> = {
   RECEIPT: "bg-emerald-500/15 text-emerald-500 ring-emerald-500/25",
@@ -125,12 +124,6 @@ export default async function StockTransactionPage({
               </p>
             </div>
             <div className="flex shrink-0 gap-2">
-              <Link
-                href="/stock"
-                className={buttonClasses({ variant: "outline", size: "sm" })}
-              >
-                <ArrowLeft className="h-4 w-4" /> Back
-              </Link>
             </div>
           </div>
 

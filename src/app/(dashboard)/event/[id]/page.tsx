@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, asc, eq, sql } from "drizzle-orm";
-import { ArrowLeft, Pencil, CalendarDays, Users, ListChecks, Paperclip } from "lucide-react";
+import { Pencil, CalendarDays, Users, ListChecks, Paperclip } from "lucide-react";
 import { db } from "@/db";
 import {
   attachmentT,
@@ -12,7 +12,6 @@ import {
   eventT,
   staffT,
 } from "@/db/schema";
-import { buttonClasses } from "@/components/ui/button";
 import { getSession } from "@/lib/session";
 import { formatDate } from "@/lib/utils";
 import { isEventLocked, toEventStatus } from "@/lib/event-status";
@@ -182,12 +181,6 @@ export default async function EventDetailPage({
             {ev.subtitle && <p className="mt-1 text-sm text-white/80">{ev.subtitle}</p>}
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <Link
-              href="/event"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-1.5 text-sm font-medium backdrop-blur-sm transition-colors hover:bg-white/25"
-            >
-              <ArrowLeft className="h-4 w-4" /> Back
-            </Link>
             {!isEventLocked(ev.status) && (
               <Link
                 href={`/event/${ev.id}/edit`}
