@@ -1,6 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { departmentMasterT, staffT, subjectMasterT } from "@/db/schema";
+import { departmentMasterT, subjectMasterT } from "@/db/schema";
+import { getStaffOptions } from "@/lib/staff-queries";
 
 /**
  * Server-only option loaders for the FDP form. Kept apart from `fdp.ts`, which
@@ -9,16 +10,7 @@ import { departmentMasterT, staffT, subjectMasterT } from "@/db/schema";
  */
 export async function getFdpOptions() {
   const [staff, subjects, departments] = await Promise.all([
-    db
-      .select({
-        id: staffT.id,
-        name: staffT.staff_name,
-        designation: staffT.designation,
-        department_id: staffT.department_id,
-      })
-      .from(staffT)
-      .where(eq(staffT.display, "Y"))
-      .orderBy(asc(staffT.staff_name)),
+    getStaffOptions(),
     db
       .select({
         id: subjectMasterT.id,
@@ -38,12 +30,8 @@ export async function getFdpOptions() {
 
   return {
     // The label's "Name — Designation" shape is split on save to recover the
-    // plain name, so keep the separator in step with fdp-form.tsx.
-    staff: staff.map((s) => ({
-      value: String(s.id),
-      label: s.designation ? `${s.name} — ${s.designation}` : s.name,
-      department_id: s.department_id ? String(s.department_id) : "",
-    })),
+    // plain name (STAFF_LABEL_SEP), so keep fdp-form.tsx in step with it.
+    staff,
     subjects: subjects.map((s) => ({
       value: String(s.id),
       label: s.subject_code ? `${s.subject_code} — ${s.subject_name}` : s.subject_name,

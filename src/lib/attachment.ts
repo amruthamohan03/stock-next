@@ -6,7 +6,17 @@
  * says which, and `category` says what kind of paperwork it is.
  */
 
-export const OWNER_TYPES = ["COMMITTEE", "EVENT", "MATERIAL", "FDP", "SETTINGS"] as const;
+export const OWNER_TYPES = [
+  "COMMITTEE",
+  "EVENT",
+  "MATERIAL",
+  "FDP",
+  "SETTINGS",
+  "INCOME_TAX",
+  // Files sent in chat; owner_id is the chat_message_t row. Uploaded through
+  // /api/chat/messages, not /api/attachment.
+  "CHAT",
+] as const;
 export type OwnerType = (typeof OWNER_TYPES)[number];
 
 export function isOwnerType(value: unknown): value is OwnerType {
@@ -25,6 +35,8 @@ export const CATEGORIES = [
   "SCHEDULE",
   "LOGO",
   "FAVICON",
+  "SALARY_SLIP",
+  "TAX_PROOF",
   "OTHER",
 ] as const;
 export type Category = (typeof CATEGORIES)[number];
@@ -41,6 +53,8 @@ export const CATEGORY_LABEL: Record<Category, string> = {
   SCHEDULE: "Schedule",
   LOGO: "Logo",
   FAVICON: "Favicon",
+  SALARY_SLIP: "Salary Slips",
+  TAX_PROOF: "Deduction Proofs",
   OTHER: "Other Files",
 };
 
@@ -57,6 +71,8 @@ export const CATEGORY_TINT: Record<Category, string> = {
   SCHEDULE: "bg-violet-500/15 text-violet-500 ring-violet-500/25",
   LOGO: "bg-sky-500/15 text-sky-500 ring-sky-500/25",
   FAVICON: "bg-cyan-500/15 text-cyan-500 ring-cyan-500/25",
+  SALARY_SLIP: "bg-emerald-500/15 text-emerald-500 ring-emerald-500/25",
+  TAX_PROOF: "bg-violet-500/15 text-violet-500 ring-violet-500/25",
   OTHER: "bg-slate-500/15 text-slate-500 ring-slate-500/25",
 };
 
@@ -80,6 +96,8 @@ export const CATEGORIES_FOR: Record<OwnerType, Category[]> = {
   MATERIAL: ["MATERIAL", "SOLUTION", "OTHER"],
   FDP: ["CERTIFICATE", "SCHEDULE", "OTHER"],
   SETTINGS: ["LOGO", "FAVICON"],
+  INCOME_TAX: ["SALARY_SLIP", "TAX_PROOF", "OTHER"],
+  CHAT: ["OTHER"],
 };
 
 export const categoryOptions = (owner: OwnerType) =>

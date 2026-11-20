@@ -58,7 +58,7 @@ export async function contactsFor(me: number) {
   return rows<ChatContact>(sql`
     SELECT u.id, u.full_name, r.role_name,
            COALESCE(p.last_seen_at > now() - make_interval(secs => ${ONLINE_SECONDS}), false) AS online,
-           lm.body AS last_body,
+           CASE WHEN lm.body = '' AND lm.sender_id IS NOT NULL THEN '📎 File' ELSE lm.body END AS last_body,
            to_char(lm.created_at, 'YYYY-MM-DD HH24:MI:SS') AS last_at,
            lm.sender_id = ${me} AS last_mine,
            (SELECT COUNT(*)::int FROM chat_message_t m
@@ -87,12 +87,17 @@ export async function isContact(me: number, other: number) {
   return !!r?.ok;
 }
 
+/** A file sent with a message — an attachment_t row with owner_type CHAT. */
+export type ChatFile = { id: number; name: string; type: string; size: number };
+
 export type ChatMessage = {
   id: number;
   sender_id: number;
+  /** Empty when the message is only files. */
   body: string;
   created_at: string;
   read: boolean;
+  files: ChatFile[];
 };
 
 /**
@@ -101,13 +106,19 @@ export type ChatMessage = {
  */
 export async function threadBetween(me: number, other: number) {
   const list = await rows<ChatMessage>(sql`
-    SELECT id, sender_id, body, to_char(created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at,
-           read_at IS NOT NULL AS read
-    FROM chat_message_t
-    WHERE display = 'Y'
-      AND ((sender_id = ${me} AND recipient_id = ${other})
-        OR (sender_id = ${other} AND recipient_id = ${me}))
-    ORDER BY id DESC
+    SELECT m.id, m.sender_id, m.body, to_char(m.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at,
+           m.read_at IS NOT NULL AS read,
+           COALESCE((
+             SELECT json_agg(json_build_object('id', a.id, 'name', a.file_name,
+                                               'type', a.file_type, 'size', a.file_size) ORDER BY a.id)
+             FROM attachment_t a
+             WHERE a.owner_type = 'CHAT' AND a.owner_id = m.id AND a.display = 'Y'
+           ), '[]'::json) AS files
+    FROM chat_message_t m
+    WHERE m.display = 'Y'
+      AND ((m.sender_id = ${me} AND m.recipient_id = ${other})
+        OR (m.sender_id = ${other} AND m.recipient_id = ${me}))
+    ORDER BY m.id DESC
     LIMIT ${THREAD_LIMIT}
   `);
   return list.reverse();
