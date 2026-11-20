@@ -22,6 +22,7 @@ import {
   timestamp,
   char,
   index,
+  jsonb,
 } from "drizzle-orm/pg-core";
 
 const pk = () => integer().primaryKey().generatedByDefaultAsIdentity();
@@ -819,7 +820,10 @@ export const attachmentT = pgTable("attachment_t", {
   uploaded_by: integer(),
   created_at: createdAt(),
   display: varchar({ length: 1 }).default("Y"),
-});
+}, (t) => [
+  // Every read is "files of this owner" — chat runs it per message on each poll.
+  index("attachment_owner_idx").on(t.owner_type, t.owner_id),
+]);
 
 /* ------------------------------------------------------- study materials */
 // Teaching material published against a subject — lab manuals, notes, previous
@@ -874,6 +878,54 @@ export const fdpT = pgTable("fdp_t", {
   created_at: createdAt(),
   updated_at: updatedAt(),
   display: varchar({ length: 1 }).default("Y"),
+});
+
+/* ----------------------------------------------- anticipatory income tax */
+// One employee's anticipatory income tax statement for a financial year. The
+// month-wise salary and every deduction live in `data` (shape: TaxData in
+// src/lib/income-tax.ts); the summary columns are recomputed from it on every
+// save so the list can sort and total without parsing JSON. Salary slips and
+// proofs are attachment_t rows (owner_type INCOME_TAX). New to the Next port.
+export const incomeTaxStatementT = pgTable(
+  "income_tax_statement_t",
+  {
+    id: pk(),
+    financial_year: varchar({ length: 10 }).notNull(), // "2026-27"
+    staff_id: integer(), // staff_t, when the employee is on the register
+    // Stored alongside staff_id so the statement still prints correctly if the
+    // staff row is later edited.
+    employee_name: varchar({ length: 150 }).notNull(),
+    designation: varchar({ length: 150 }),
+    pan: varchar({ length: 10 }),
+    pen: varchar({ length: 20 }), // Permanent Employee Number (SPARK)
+    father_name: varchar({ length: 150 }),
+    office: varchar({ length: 255 }),
+    category: varchar({ length: 20 }).default("GENERAL"), // GENERAL | SENIOR | SUPER_SENIOR
+    regime: varchar({ length: 3 }).default("NEW"), // NEW | OLD
+    data: jsonb().notNull(),
+    gross_income: numeric({ precision: 14, scale: 2 }).default("0"),
+    taxable_income: numeric({ precision: 14, scale: 2 }).default("0"),
+    total_tax: numeric({ precision: 14, scale: 2 }).default("0"),
+    tax_paid: numeric({ precision: 14, scale: 2 }).default("0"),
+    balance_tax: numeric({ precision: 14, scale: 2 }).default("0"),
+    created_by: integer(),
+    updated_by: integer(),
+    created_at: createdAt(),
+    updated_at: updatedAt(),
+    display: varchar({ length: 1 }).default("Y"),
+  },
+  (t) => [index("income_tax_statement_fy_idx").on(t.financial_year, t.staff_id)]
+);
+
+// Lock state per financial year. The years themselves (and their rates) are in
+// RULES in src/lib/income-tax.ts; a year with no row here falls back to
+// lockedByDefault(). A locked year's statements cannot be added, edited or
+// deleted.
+export const incomeTaxYearT = pgTable("income_tax_year_t", {
+  financial_year: varchar({ length: 10 }).primaryKey(),
+  locked: integer().notNull().default(1), // 1 = locked, 0 = open
+  updated_by: integer(),
+  updated_at: updatedAt(),
 });
 
 /* ----------------------------------------------------- application settings */

@@ -53,6 +53,7 @@ const DIRECT: Record<string, string> = {
   chat: "/chat",
   settings: "/settings",
   "application-settings": "/settings",
+  "income-tax": "/income-tax",
 };
 
 /** Routes that are actually implemented in this port. */
@@ -98,6 +99,7 @@ export const IMPLEMENTED = new Set<string>([
   "/stock-book-move",
   "/chat",
   "/settings",
+  "/income-tax",
 ]);
 
 export function toRoute(url: string | null): string {

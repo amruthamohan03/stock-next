@@ -1,11 +1,26 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Check, CheckCheck, Loader2, MessageCircle, Search, Send, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  CheckCheck,
+  Download,
+  FileText,
+  Loader2,
+  MessageCircle,
+  Paperclip,
+  Search,
+  Send,
+  Trash2,
+  X,
+} from "lucide-react";
 import { apiDelete, apiPost, apiRequest } from "@/lib/api-client";
 import { useConfirm } from "@/components/ui/confirm";
 import { useToast } from "@/components/ui/toast";
-import type { ChatContact, ChatMessage, ChatPerms } from "@/lib/chat";
+import type { ChatContact, ChatFile, ChatMessage, ChatPerms } from "@/lib/chat";
+import { formatBytes, isImageType } from "@/lib/attachment";
+import { DOCUMENT_ACCEPT, MAX_UPLOAD_BYTES } from "@/lib/upload";
 
 export type ChatOverview = { me: number; perms: ChatPerms; unread: number; contacts: ChatContact[] };
 
@@ -53,6 +68,43 @@ function Avatar({ name, online, size = "md" }: { name: string; online: boolean; 
         aria-label={online ? "Online" : "Offline"}
       />
     </span>
+  );
+}
+
+const MAX_FILES = 10;
+const fileUrl = (f: ChatFile) => `/api/attachment?id=${f.id}`;
+
+/** A file inside a message bubble: a thumbnail for images, a download chip otherwise. */
+function ChatFileItem({ file, mine }: { file: ChatFile; mine: boolean }) {
+  if (isImageType(file.type))
+    return (
+      <a href={fileUrl(file)} target="_blank" rel="noreferrer" title={file.name} className="block">
+        {/* eslint-disable-next-line @next/next/no-img-element -- session-gated stream, not a static asset */}
+        <img
+          src={fileUrl(file)}
+          alt={file.name}
+          loading="lazy"
+          className="max-h-48 w-auto max-w-full rounded-lg object-cover"
+        />
+      </a>
+    );
+  return (
+    <a
+      href={fileUrl(file)}
+      target="_blank"
+      rel="noreferrer"
+      title={`Open ${file.name}`}
+      className={`flex items-center gap-2 rounded-lg px-2 py-1.5 ring-1 ring-inset transition-colors ${
+        mine ? "bg-white/15 ring-white/25 hover:bg-white/25" : "bg-card ring-line hover:bg-surface"
+      }`}
+    >
+      <FileText className="h-5 w-5 shrink-0" />
+      <span className="min-w-0 flex-1 leading-tight">
+        <span className="block truncate text-xs font-semibold">{file.name}</span>
+        <span className={`text-[10px] ${mine ? "text-white/70" : "text-faint"}`}>{formatBytes(file.size)}</span>
+      </span>
+      <Download className="h-4 w-4 shrink-0 opacity-70" />
+    </a>
   );
 }
 
@@ -173,7 +225,10 @@ function Thread({
   const [messages, setMessages] = useState<ChatMessage[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const [pending, setPending] = useState<File[]>([]);
+  const [dragging, setDragging] = useState(false);
   const [sending, setSending] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
   const lastId = useRef(0);
@@ -208,14 +263,37 @@ function Thread({
     if (el && stickToBottom.current) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
+  /** Queue files to send; oversized ones are refused here rather than after uploading. */
+  const addFiles = (list: FileList | File[]) => {
+    const picked = Array.from(list);
+    const tooBig = picked.filter((f) => f.size > MAX_UPLOAD_BYTES);
+    if (tooBig.length)
+      toast.warning(`${tooBig.map((f) => f.name).join(", ")} ${tooBig.length === 1 ? "is" : "are"} larger than 10 MB.`);
+    setPending((cur) => {
+      const next = [...cur, ...picked.filter((f) => f.size <= MAX_UPLOAD_BYTES)];
+      if (next.length > MAX_FILES) toast.warning(`You can send up to ${MAX_FILES} files at a time.`);
+      return next.slice(0, MAX_FILES);
+    });
+  };
+
   const send = async () => {
     const text = draft.trim();
-    if (!text || sending) return;
+    if ((!text && pending.length === 0) || sending) return;
     setSending(true);
-    const r = await apiPost("/api/chat/messages", { to: contact.id, body: text });
+    let r;
+    if (pending.length) {
+      const fd = new FormData();
+      fd.append("to", String(contact.id));
+      fd.append("body", text);
+      for (const f of pending) fd.append("file", f);
+      r = await apiRequest<{ skipped?: number }>("/api/chat/messages", { method: "POST", body: fd });
+    } else r = await apiPost<{ skipped?: number }>("/api/chat/messages", { to: contact.id, body: text });
     setSending(false);
     if (r.success) {
+      // Partly sent: say which files were skipped.
+      if (r.data?.skipped) toast.warning(r.message);
       setDraft("");
+      setPending([]);
       stickToBottom.current = true;
       await load();
     } else toast.error(r.message);
@@ -224,7 +302,9 @@ function Thread({
   const remove = async (m: ChatMessage) => {
     const ok = await confirm({
       title: "Delete this message?",
-      description: "It disappears from the conversation for both of you.",
+      description: m.files.length
+        ? "It and its files disappear from the conversation for both of you."
+        : "It disappears from the conversation for both of you.",
       confirmLabel: "Delete",
       tone: "danger",
     });
@@ -267,7 +347,24 @@ function Thread({
           const el = e.currentTarget;
           stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
         }}
-        className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-3 py-3 text-sm"
+        // Drop files onto the conversation to queue them for sending.
+        onDragOver={(e) => {
+          if (!perms.send || !e.dataTransfer.types.includes("Files")) return;
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false);
+        }}
+        onDrop={(e) => {
+          if (!perms.send) return;
+          e.preventDefault();
+          setDragging(false);
+          if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
+        }}
+        className={`min-h-0 flex-1 space-y-1.5 overflow-y-auto px-3 py-3 text-sm ${
+          dragging ? "bg-accent-soft ring-2 ring-inset ring-accent" : ""
+        }`}
         aria-live="polite"
       >
         {messages === null && !loadError && (
@@ -302,7 +399,8 @@ function Thread({
                     onClick={() => remove(m)}
                     title="Delete message"
                     aria-label="Delete message"
-                    className="mb-1 rounded p-1 text-faint opacity-0 transition-opacity hover:text-rose-500 focus:opacity-100 group-hover:opacity-100"
+                    // Hover-revealed with a mouse; always shown on touch screens, which can't hover.
+                    className="mb-1 rounded p-1 text-faint opacity-0 transition-opacity hover:text-rose-500 focus:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -314,6 +412,13 @@ function Thread({
                       : "rounded-bl-md bg-elevated text-fg ring-1 ring-line"
                   }`}
                 >
+                  {m.files.length > 0 && (
+                    <div className={`space-y-1.5 ${m.body ? "mb-1" : "pt-0.5"}`}>
+                      {m.files.map((f) => (
+                        <ChatFileItem key={f.id} file={f} mine={mine} />
+                      ))}
+                    </div>
+                  )}
                   {m.body}
                   <span
                     className={`ml-2 inline-flex translate-y-0.5 items-center gap-0.5 align-bottom text-[10px] ${
@@ -336,14 +441,58 @@ function Thread({
         })}
       </div>
 
+      {perms.send && pending.length > 0 && (
+        <ul className="flex flex-wrap gap-1.5 border-t border-line px-3 pt-2.5" aria-label="Files to send">
+          {pending.map((f, i) => (
+            <li
+              key={`${f.name}-${i}`}
+              className="flex max-w-full items-center gap-1.5 rounded-lg bg-elevated py-1 pl-2 pr-1 text-xs text-fg ring-1 ring-line"
+            >
+              <Paperclip className="h-3.5 w-3.5 shrink-0 text-faint" />
+              <span className="max-w-40 truncate">{f.name}</span>
+              <span className="text-faint">{formatBytes(f.size)}</span>
+              <button
+                type="button"
+                onClick={() => setPending((cur) => cur.filter((_, j) => j !== i))}
+                aria-label={`Remove ${f.name}`}
+                className="rounded p-0.5 text-faint hover:bg-surface hover:text-rose-500"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
       {perms.send ? (
         <form
           onSubmit={(e) => {
             e.preventDefault();
             send();
           }}
-          className="flex items-end gap-2 border-t border-line p-3"
+          className={`flex items-end gap-2 p-3 ${pending.length ? "" : "border-t border-line"}`}
         >
+          <input
+            ref={fileInput}
+            type="file"
+            multiple
+            accept={DOCUMENT_ACCEPT}
+            onChange={(e) => {
+              if (e.target.files) addFiles(e.target.files);
+              e.target.value = ""; // allow re-picking the same file
+            }}
+            className="hidden"
+          />
+          <button
+            type="button"
+            onClick={() => fileInput.current?.click()}
+            disabled={sending}
+            title="Attach files (images, PDF, Word, Excel, PowerPoint, ZIP, text — up to 10 MB each)"
+            aria-label="Attach files"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-muted ring-1 ring-line transition-colors hover:bg-elevated hover:text-fg disabled:opacity-40"
+          >
+            <Paperclip className="h-4 w-4" />
+          </button>
           <textarea
             rows={1}
             value={draft}
@@ -362,7 +511,7 @@ function Thread({
           />
           <button
             type="submit"
-            disabled={sending || !draft.trim()}
+            disabled={sending || (!draft.trim() && pending.length === 0)}
             aria-label="Send"
             className="bg-accent-duo flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white shadow-md shadow-accent/30 transition-opacity disabled:opacity-40"
           >

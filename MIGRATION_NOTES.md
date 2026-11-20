@@ -57,8 +57,9 @@ Existing passwords keep working — the bcrypt hashes are compatible.
 | Stock Books (balance)   | `stock/StockController::stockBooks`    | ✅ Ported (read + summary cards) |
 | Live Stock Register     | `report/LiveController`                | ✅ Ported (read, aggregated) |
 | Sidebar menu / RBAC     | `MenuModel`, role-menu mapping         | ✅ Ported           |
-| Chat (user to user)     | — (new in Next; `chat_message_t`, `chat_presence_t`) | ✅ New: floating widget + `/chat`; access by role on the "Chat" menu (view / add = send / delete own) |
+| Chat (user to user)     | — (new in Next; `chat_message_t`, `chat_presence_t`) | ✅ New: floating widget + `/chat`; access by role on the "Chat" menu (view / add = send / delete own). File transfer: images, PDF, Office, ZIP, text (≤10 MB, ≤10 per message) stored as `attachment_t` rows with owner_type `CHAT`, visible only to the two people in the conversation |
 | Move to Stock Book      | — (new in Next; `stock_book_move_t`)   | ✅ New: moves indent lines / stock entries to another register, partial qty splits the line |
+| Anticipatory Income Tax | — (new in Next; `income_tax_statement_t`) | ✅ New: Easy Tax-style entry (salary grid with PF/SLI/GIS/LIC/NPS/Medisep, arrears, other incomes, deductions, mediclaim, TDS, Form 12BB); SPARK salary slip PDFs auto-fill months (`salary-slip.ts`, read by the dependency-free `pdf-text.ts`); printable Old / New / Form 12BB sheets; slips/proofs via `AttachmentPanel`. Rates in `RULES` (`src/lib/income-tax.ts`) for FY 2024-25 → 2026-27; per-year lock/unlock in `income_tax_year_t` (locked years are read-only; "approve" right to toggle). Menu: `scripts/add-income-tax-menu.ts` |
 | Day Book                | `stock/DaybookController`              | ⏳ Placeholder      |
 | Stock entry / transfer  | `stock/StockController` (1.7k LOC)     | ⏳ Read-only for now |
 | Reports (PDF/Excel)     | `report/*` (mpdf, PhpSpreadsheet)      | ⏳ Live stock done; PDF/Excel export not yet |

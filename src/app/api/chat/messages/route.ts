@@ -4,8 +4,11 @@ import { db } from "@/db";
 import { chatMessageT } from "@/db/schema";
 import { getSession } from "@/lib/session";
 import { chatPerms, isContact, markRead, threadBetween, touchPresence } from "@/lib/chat";
+import { prepareUploads, storeUploads } from "@/lib/attachment-store";
+import { sniffDocumentType } from "@/lib/upload";
 
 const MAX_CHARS = 2000;
+const MAX_FILES = 10;
 
 const fail = (message: string, status = 400) =>
   NextResponse.json({ success: false, message }, { status });
@@ -38,26 +41,58 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ success: true, message: "", messages });
 }
 
-/** Send a message to a contact. */
+/**
+ * Send a message to a contact. JSON `{ to, body }` for text; multipart
+ * (`to`, `body`, one or more `file`) to send files, with or without text.
+ */
 export async function POST(req: NextRequest) {
   const a = await access();
   if ("error" in a) return a.error;
   if (!a.perms.send) return fail("Your role can read chats but not send messages.", 403);
 
-  const body = (await req.json().catch(() => ({}))) as { to?: unknown; body?: unknown };
-  const to = posInt(body.to);
-  const text = typeof body.body === "string" ? body.body.trim() : "";
+  let toRaw: unknown;
+  let bodyRaw: unknown;
+  let files: File[] = [];
+  if (req.headers.get("content-type")?.includes("multipart/form-data")) {
+    const form = await req.formData().catch(() => null);
+    if (!form) return fail("The upload could not be read. Please try again.");
+    toRaw = form.get("to");
+    bodyRaw = form.get("body");
+    files = form.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);
+  } else {
+    const json = (await req.json().catch(() => ({}))) as { to?: unknown; body?: unknown };
+    toRaw = json.to;
+    bodyRaw = json.body;
+  }
+
+  const to = posInt(toRaw);
+  const text = typeof bodyRaw === "string" ? bodyRaw.trim() : "";
   if (!to) return fail("Choose who to send the message to.");
-  if (!text) return fail("Type a message first.");
+  if (!text && files.length === 0) return fail("Type a message or attach a file first.");
   if (text.length > MAX_CHARS) return fail(`Messages can be up to ${MAX_CHARS} characters.`);
+  if (files.length > MAX_FILES) return fail(`Send at most ${MAX_FILES} files at a time.`);
   if (!(await isContact(a.session.id, to)))
     return fail("That person isn't available for chat.", 404);
 
-  const [msg] = await db
-    .insert(chatMessageT)
-    .values({ sender_id: a.session.id, recipient_id: to, body: text })
-    .returning({ id: chatMessageT.id });
-  return NextResponse.json({ success: true, message: "Sent", id: msg.id });
+  // Validate every file before anything is saved, so a send with nothing
+  // usable leaves no empty message behind.
+  const { ok, rejected } = await prepareUploads(files, sniffDocumentType, "a supported file type");
+  if (files.length > 0 && ok.length === 0 && !text)
+    return fail(`Nothing sent — ${rejected.join("; ")}`);
+
+  try {
+    const [msg] = await db
+      .insert(chatMessageT)
+      .values({ sender_id: a.session.id, recipient_id: to, body: text })
+      .returning({ id: chatMessageT.id });
+    if (ok.length)
+      await storeUploads(ok, { ownerType: "CHAT", ownerId: msg.id, category: "OTHER", userId: a.session.id });
+    const message = rejected.length ? `Sent, but skipped ${rejected.join("; ")}` : "Sent";
+    return NextResponse.json({ success: true, message, id: msg.id, skipped: rejected.length });
+  } catch (e) {
+    console.error("chat POST", e);
+    return fail("The message could not be sent. Please try again.", 500);
+  }
 }
 
 /** Delete one of your own messages (soft delete, kept for history). */

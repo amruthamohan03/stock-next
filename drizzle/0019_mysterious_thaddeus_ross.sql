@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS "attachment_owner_idx" ON "attachment_t" USING btree ("owner_type","owner_id");

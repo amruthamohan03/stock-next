@@ -21,6 +21,7 @@ import {
   MessageSquare,
   CalendarDays,
   Award,
+  Calculator,
   type LucideIcon,
 } from "lucide-react";
 import type { MenuNode } from "@/lib/rbac";
@@ -68,6 +69,8 @@ function iconFor(node: MenuNode): LucideIcon {
     confetti: Award,
     award: Award,
     trophy: Award,
+    calculator: Calculator,
+    receipt: Calculator,
   };
   if (byClass[key]) return byClass[key];
 
@@ -82,6 +85,7 @@ function iconFor(node: MenuNode): LucideIcon {
   if (/message|mail|whatsapp|send/.test(text)) return MessageSquare;
   if (/timetable|schedule|calendar|event|festival/.test(text)) return CalendarDays;
   if (/committee|arts|certificate|award/.test(text)) return Award;
+  if (/tax|salary|payroll/.test(text)) return Calculator;
   return Folder;
 }
 

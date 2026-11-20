@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, or, type Column, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { menuMasterT, roleMenuMappingT } from "@/db/schema";
 
@@ -121,4 +121,20 @@ export async function hasPermission(
     );
   const col = `can_${action}` as const;
   return rows.some((r) => !!(r as Record<string, unknown>)[col]);
+}
+
+/** Super Admin (role_id = 1) is the god-mode escape hatch across RBAC. */
+export const isSuperAdmin = (roleId: number) => roleId === 1;
+
+/**
+ * Row-level ownership: Super Admin sees every row; everyone else only rows
+ * they created or last modified. Returns `undefined` for Super Admin, which
+ * `and(...)` drops, so it composes straight into an existing `where`.
+ */
+export function ownedBy(
+  user: { id: number; roleId: number },
+  table: { created_by: Column; updated_by: Column }
+): SQL | undefined {
+  if (isSuperAdmin(user.roleId)) return undefined;
+  return or(eq(table.created_by, user.id), eq(table.updated_by, user.id));
 }
